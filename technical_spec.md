@@ -1,4 +1,4 @@
-# Technical Specification
+# Technical Specification: Vision-Based Traffic Signal Optimisation (VBTSO)
 
 > **Living document.** Updated with every technology or feature decision; each change is logged in the [Decision log](#9-decision-log) and [Changelog](#10-changelog).
 > Status tags: `[Current]` in the repo today · `[Critiqued]` reviewed and found weak · `[Proposed]` suggested · `[Decided]` agreed.
@@ -284,11 +284,13 @@ n8n is optional glue; a small FastAPI service that validates the schema and stor
 | T-007 | 2026-10-20 | Integration layer: n8n vs FastAPI | Open | R7 |
 | T-008 | 2026-10-20 | VLM/foundation-model pre-labelling and judge-model evaluation | Rejected (owner) | Manual annotation + metric-based evaluation instead; avoids extra complexity |
 | T-009 | 2026-10-20 | Hugging Face Hub for publishing datasets, weights, model/dataset cards (DVC stays the working store) | Decided | R1 |
+| T-010 | 2026-11-02 | Project renamed VBTSO (see functional D-008); repo `vaso-traffic`; use `vbtso` as the Python package name when `src/` is created | Decided | Naming consistency |
 
 ## 10. Changelog
 
 | Date | Change |
 |---|---|
+| 2026-11-02 | Renamed project to VBTSO (T-010). |
 | 2026-10-20 | Added Hugging Face Hub (2.6, T-009); removed VLM pre-labelling from pipeline and sourcing (T-008). |
 | 2026-10-20 | First version, from a full read of `main.ipynb`, `notebooks/01`, `notebooks/02`; external facts from web searches (YOLO26, dataset licences, SUMO benchmarks), several flagged *verify*. |
 

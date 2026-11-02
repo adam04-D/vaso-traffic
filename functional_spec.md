@@ -1,10 +1,10 @@
-# Functional Specification
+# Functional Specification: Vision-Based Traffic Signal Optimisation (VBTSO)
 
 > **Living document.** Every feature or technology decision updates the relevant section and appends a row to the [Changelog](#9-changelog) and [Decision log](#8-decision-log).
 > Status tags: `[Current]` exists in the repo today · `[Critiqued]` reviewed and found weak · `[Proposed]` suggested, not agreed · `[Decided]` agreed with the owner.
 > Companion document: [technical_spec.md](technical_spec.md).
 
-**Working title:** *GreenFlow* → rename `[Proposed]` (candidates: *FlowSense*, *Intersect*, *Cadence*; decision pending, see [Open questions](#7-open-questions)).
+**Project name:** Vision-Based Traffic Signal Optimisation (**VBTSO**) `[Decided]`, see D-008. GitHub repository: `vaso-traffic`. Formerly *GreenFlow Rabat* (hackathon name).
 **Owner:** Adam Daoudi · **Nature:** personal portfolio project (the RamadnIA 2026 hackathon is over).
 
 ---
@@ -164,7 +164,7 @@ gantt
 
 ## 7. Open questions
 
-1. Final project name.
+1. ~~Final project name.~~ Resolved, see D-008.
 2. Are `tram` and `urgence` core or local classes?
 3. Which public datasets pass the licence check (see technical_spec section 2.3)?
 4. Do we have access to any fixed-camera footage of Rabat (public webcams, or our own recording)?
@@ -180,12 +180,14 @@ gantt
 | D-003 | 2026-10-20 | Generic core, Rabat as flagship case | Decided | Comparable metrics, plus a hard local test. |
 | D-004 | 2026-10-20 | Free/low-cost compute, object storage + DVC instead of Drive | Decided | Reproducibility, real data-engineering practice. |
 | D-005 | 2026-10-20 | Tiered control: fixed-time → Webster/max-pressure → optional RL in SUMO | Decided | Always keep a baseline to beat. |
-| D-007 | 2026-10-20 | Publish datasets/weights on Hugging Face Hub; no VLM pre-labelling or judge-model evaluation | Decided | Portfolio visibility without extra complexity. |
 | D-006 | 2026-10-20 | System is advisory only | Proposed | Safety and honesty of claims. |
+| D-007 | 2026-10-20 | Publish datasets/weights on Hugging Face Hub; no VLM pre-labelling or judge-model evaluation | Decided | Portfolio visibility without extra complexity. |
+| D-008 | 2026-11-02 | Project renamed Vision-Based Traffic Signal Optimisation (VBTSO); repo `vaso-traffic` | Decided | Descriptive name (computer vision applied to signal optimisation), city-agnostic, replaces the hackathon name. |
 
 ## 9. Changelog
 
 | Date | Change |
 |---|---|
+| 2026-11-02 | Renamed project to Vision-Based Traffic Signal Optimisation (VBTSO), D-008; closed open question 1; reordered D-006/D-007. |
 | 2026-10-20 | Added D-007 (Hugging Face Hub; VLM rejected). |
 | 2026-10-20 | First version: vision, tiers, domain strategy, control problem, critique, roadmap. |
