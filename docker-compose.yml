@@ -1,4 +1,5 @@
 # Local development services. Start with `just up`, stop with `just down`.
+# Services: s3mock (dev store for DVC), api (event service), edge (video worker, profile `edge`).
 # s3mock is an S3-compatible object store used ONLY on this machine (DVC remote `local`).
 # The shared remote for Kaggle/Colab/other machines is Cloudflare R2 (DVC remote `r2`).
 # Variables come from `.env` (copy `.env.example`).
@@ -22,6 +23,34 @@ services:
     volumes:
       - s3mock-data:/data
     restart: unless-stopped
+
+  # Event-ingestion API. `just up` starts it together with the dev store.
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    image: vbtso-api:dev
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: unless-stopped
+
+  # Edge worker (stub until P3). Not started by `up`; run it on a video with `just edge`.
+  edge:
+    build:
+      context: .
+      dockerfile: docker/edge.Dockerfile
+    image: vbtso-edge:dev
+    profiles: ["edge"]
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      VIDEO_PATH: ${VIDEO_PATH:-/data/samples/clip.mp4}
+      API_URL: http://api:8000/events
+      CAMERA_ID: ${CAMERA_ID:-camera-1}
+      WINDOW_SECONDS: ${WINDOW_SECONDS:-30}
+    volumes:
+      - ./data:/data:ro
 
 volumes:
   s3mock-data:
