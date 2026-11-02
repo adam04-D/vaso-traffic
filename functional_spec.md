@@ -180,10 +180,12 @@ gantt
 | D-003 | 2026-10-20 | Generic core, Rabat as flagship case | Decided | Comparable metrics, plus a hard local test. |
 | D-004 | 2026-10-20 | Free/low-cost compute, object storage + DVC instead of Drive | Decided | Reproducibility, real data-engineering practice. |
 | D-005 | 2026-10-20 | Tiered control: fixed-time → Webster/max-pressure → optional RL in SUMO | Decided | Always keep a baseline to beat. |
+| D-007 | 2026-10-20 | Publish datasets/weights on Hugging Face Hub; no VLM pre-labelling or judge-model evaluation | Decided | Portfolio visibility without extra complexity. |
 | D-006 | 2026-10-20 | System is advisory only | Proposed | Safety and honesty of claims. |
 
 ## 9. Changelog
 
 | Date | Change |
 |---|---|
+| 2026-10-20 | Added D-007 (Hugging Face Hub; VLM rejected). |
 | 2026-10-20 | First version: vision, tiers, domain strategy, control problem, critique, roadmap. |

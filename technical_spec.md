@@ -33,11 +33,12 @@ flowchart TD
     SRC[Sources: public datasets,<br/>own recordings, synthetic] --> RAW[(Raw store<br/>S3-compatible bucket)]
     RAW --> EXT[Frame extraction<br/>+ scene id + metadata]
     EXT --> FIL[Quality filters<br/>dark / blur / near-duplicate]
-    FIL --> PRE[Pre-labelling<br/>foundation model]
-    PRE --> REV[Human review<br/>label QA]
+    FIL --> REV[Manual annotation<br/>+ label QA]
     REV --> SPL[Scene-level split<br/>train / val / test]
     SPL --> VER[(Versioned dataset<br/>DVC + dataset card)]
     VER --> TRAIN[Training]
+    VER -.->|publish release| HF[(Hugging Face Hub<br/>dataset + model cards)]
+    TRAIN -.->|publish weights| HF
 ```
 
 - Each stage is a script with a config, run with a pipeline tool (DVC stages), so `dvc repro` rebuilds the dataset.
@@ -57,7 +58,6 @@ The single largest weakness is data. Matrix to fill in; entries marked *verify* 
 | Roboflow Universe public sets | Variable | Boxes | Per dataset | Low | Check each licence; label taxonomies differ. |
 | Synthetic (CARLA / SUMO + renderer) | Controllable | Free, exact | Own | Medium | Can generate rare classes and weather; sim-to-real gap to measure. |
 | Own fixed-camera recording | Best | Manual | Own | High | Only if a safe vantage point is available; plate/face privacy applies. |
-| Foundation-model pre-labelling of unlabelled video | n/a | Pseudo | n/a | Medium | Cuts annotation cost; needs review to avoid training on model errors. |
 
 ### 2.4 Split policy `[Proposed]`
 
@@ -81,6 +81,18 @@ Rule: split by `scene_id`; at least one night and one rain scene are held out en
 ### 2.5 Storage `[Proposed]`
 
 Replace Drive with an S3-compatible bucket (candidates: Cloudflare R2, Backblaze B2, or MinIO locally) as the DVC remote. Reasons: versioned, scriptable, usable from Kaggle/Colab/Mac with the same commands, and it is what real teams do. Cost on free tiers to be checked at setup (*verify*).
+
+### 2.6 Hugging Face Hub `[Proposed]`
+
+Role: the **public distribution layer**, not the working store. DVC + the bucket remain the pipeline and versioning backbone (they carry the reproducibility skill, R1); Hugging Face holds the finished artefacts.
+
+| Artefact | On the Hub | Why |
+|---|---|---|
+| Dataset releases | Dataset repo with a dataset card (origin, licences, class counts, split rule) | Public, versioned, recruiter-visible. Only data whose licences allow redistribution is published; otherwise publish scripts and metadata only. |
+| Trained weights | Model repo with a model card (metrics per class, training data version, limits) | One place to pull a released model. |
+| Demo (later) | A Space running the detector on uploaded video | Free hosting for a portfolio demo; not MVP. |
+
+Rule: a Hub release is cut from a tagged git commit + DVC dataset version, so it stays reproducible. Evaluation stays metric-based (mAP, count error); no judge model, and no VLM pre-labelling (rejected, see T-008).
 
 ## 3. Modelling
 
@@ -270,11 +282,14 @@ n8n is optional glue; a small FastAPI service that validates the schema and stor
 | T-005 | 2026-10-20 | SUMO as controller validation ground truth | Proposed | R6 |
 | T-006 | 2026-10-20 | Experiment tracker: W&B or MLflow | Open | R1 |
 | T-007 | 2026-10-20 | Integration layer: n8n vs FastAPI | Open | R7 |
+| T-008 | 2026-10-20 | VLM/foundation-model pre-labelling and judge-model evaluation | Rejected (owner) | Manual annotation + metric-based evaluation instead; avoids extra complexity |
+| T-009 | 2026-10-20 | Hugging Face Hub for publishing datasets, weights, model/dataset cards (DVC stays the working store) | Decided | R1 |
 
 ## 10. Changelog
 
 | Date | Change |
 |---|---|
+| 2026-10-20 | Added Hugging Face Hub (2.6, T-009); removed VLM pre-labelling from pipeline and sourcing (T-008). |
 | 2026-10-20 | First version, from a full read of `main.ipynb`, `notebooks/01`, `notebooks/02`; external facts from web searches (YOLO26, dataset licences, SUMO benchmarks), several flagged *verify*. |
 
 ## 11. Sources consulted
