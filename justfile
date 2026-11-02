@@ -15,7 +15,7 @@ setup:
 
 # Lightweight setup (dev tools only, no PyTorch): enough for lint, tests and docs
 setup-light:
-    uv sync
+    uv sync --extra api
     uv run pre-commit install --install-hooks
 
 # Lint without changing files
@@ -47,9 +47,17 @@ nb-clean:
 lab:
     uv run jupyter lab
 
-# Start local services (S3-compatible dev store on localhost:9090, bucket created automatically)
+# Start local services: S3-compatible dev store (localhost:9090) and the event API (localhost:8000)
 up:
-    docker compose up -d --wait s3mock
+    docker compose up -d --wait s3mock api
+
+# Build the API and edge images
+build:
+    docker compose --profile edge build
+
+# Run the edge worker on a video (default data/samples/clip.mp4) and post one event to the API
+edge video="/data/samples/clip.mp4":
+    VIDEO_PATH={{video}} docker compose --profile edge run --rm edge
 
 # Stop local services (data is kept in the Docker volume; `docker compose down -v` erases it)
 down:

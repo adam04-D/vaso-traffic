@@ -184,13 +184,15 @@ Notebooks become exploration only; logic lives in the `vbtso` package (`src` lay
 ├── src/vbtso/
 │   ├── data/                 # extract, filter, split, validate        (P1)
 │   ├── models/               # train, eval, export                     (P2)
+│   ├── edge/                 # edge worker entrypoint (stub today)    (P3)
 │   ├── tracking/             # tracker, zone counter                   (P3)
 │   ├── control/              # fixed_time, webster, max_pressure, rl   (P4)
 │   └── api/                  # event schema v1, ingestion service      (P5)
 ├── tests/                    # unit tests on pure functions + schema tests
 ├── notebooks/                # exploration only (legacy, ruff-excluded)
 ├── docs/                     # DEVELOPER_GUIDE.md, legacy_results.md
-├── docker/                   # edge and API images (milestone M3)
+├── docker/                   # api.Dockerfile, edge.Dockerfile
+├── docker-compose.yml        # dev store (s3mock), api, edge (profile)
 ├── scripts/                  # github_setup.sh
 └── .github/                  # workflows, issue and PR templates
 ```
@@ -344,11 +346,13 @@ Order of work: X3 and X4 first (cheap, they reuse the existing training loop), t
 | T-014 | 2026-11-02 | Workflow: protected main, branch + PR for every change, squash-merge, Conventional Commits (extra types `exp`, `data`), GitHub issues and milestones; see CONTRIBUTING.md and docs/DEVELOPER_GUIDE.md | Decided | Traceability, enterprise-style process |
 | T-015 | 2026-11-02 | Environment: uv (Python 3.12, `pyproject.toml` + committed `uv.lock`) replaces conda/pip/`requirements.txt`; `just` as task runner; ruff + pytest; pre-commit (ruff, nbstripout); heavy deps as extras (`train`, `edge`, `api`), tooling as a `dev` group | Decided | R1, R3 |
 | T-016 | 2026-11-02 | DVC remotes: `r2` (Cloudflare R2, shared, default) and `local` (S3Mock in Docker, offline dev); credentials only through environment variables or git-ignored `.dvc/config.local`; store bound to localhost, no real data | Decided | R1, R3; Kaggle/Colab cannot reach a MinIO on the Mac, so the shared remote must be cloud-hosted |
+| T-017 | 2026-11-02 | Containers: multi-stage uv-based images for `api` and `edge` only (training stays on uv), `python:3.12.12-slim-bookworm` and uv 0.13.5 pinned, non-root user, API health check, edge has no port; compose with profile `edge`; CI builds both images on PRs; images built for the host architecture, multi-arch deferred until a hardware target exists | Decided | R3 (reproducible deploy), R7 |
 
 ## 11. Changelog
 
 | Date | Change |
 |---|---|
+| 2026-11-02 | M3 containers: api and edge images, schema v1 pydantic model and /events stub, edge stub, compose, CI image build (T-017). |
 | 2026-11-02 | M2 data platform: DVC remotes r2 + local (T-016), docker-compose with an S3Mock dev store (MinIO images unavailable), just recipes, guide section 8. |
 | 2026-11-02 | M1 environment: section 4 rewritten to the real repo layout; T-015 (uv, just, ruff, pre-commit, CI). |
 | 2026-11-02 | M0 governance: licence AGPL-3.0 (3.4, T-013), contribution workflow (T-014). |

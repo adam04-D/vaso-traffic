@@ -12,7 +12,7 @@ Setup and command cheat sheet for VBTSO. It grows with every milestone: each PR 
 | [6. Kaggle and Colab](#6-kaggle-and-colab) | M1 |
 | [7. Quality: lint, tests, hooks, CI](#7-quality-lint-tests-hooks-ci) | M1 |
 | [8. Data versioning (DVC)](#8-data-versioning-dvc) | M2 |
-| 9. Docker images (edge, API) | M3 |
+| [9. Docker images (edge, API)](#9-docker-images-edge-api) | M3 |
 
 ---
 
@@ -202,7 +202,7 @@ just hooks                        # run hooks on every file
 uv run pre-commit autoupdate      # bump hook versions (its own chore PR)
 ```
 
-After the first CI run, add the two checks (`Lint and test`, `PR title (Conventional Commits)`) as required status checks in the `protect-main` ruleset: GitHub, Settings, Rules, Rulesets.
+After the first CI run, add the three checks (`Lint and test`, `PR title (Conventional Commits)`, `Docker images build`) as required status checks in the `protect-main` ruleset: GitHub, Settings, Rules, Rulesets.
 
 ## 8. Data versioning (DVC)
 
@@ -268,3 +268,57 @@ for k in ["AWS_ENDPOINT_URL", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]:
 ```
 
 then `!dvc pull -r r2` after the install step of section 6 (add `dvc[s3]` with `uv pip install --system "dvc[s3]"`).
+
+## 9. Docker images (edge, API)
+
+Two images are built from the repo root. Training is **not** containerised: it runs on Kaggle, Colab or the Mac with uv.
+
+| Image | Dockerfile | Installs | Runs | Size |
+|---|---|---|---|---|
+| `vbtso-api` | `docker/api.Dockerfile` | core + extra `api` | `uvicorn vbtso.api.main:app` on port 8000, health check on `/health` | ~360 MB |
+| `vbtso-edge` | `docker/edge.Dockerfile` | core + extra `edge` (onnxruntime, OpenCV, no PyTorch) | `python -m vbtso.edge`, a worker with no port | ~540 MB |
+
+Both are multi-stage (uv installs the locked dependencies in a builder stage, the runtime stage only copies the virtualenv), run as a non-root user (`vbtso`, uid 10001), and are pinned to exact base versions: `python:3.12.12-slim-bookworm` and uv `0.13.5` (build arguments `PYTHON_VERSION`, `UV_VERSION`). Bump them together in a `chore:` PR, never implicitly.
+
+Today both run placeholders: the API validates schema v1 events and keeps the last 100 in memory; the edge worker reads a video, counts frames and posts one empty event. Real logic arrives in P3 (edge) and P5 (API).
+
+```bash
+just up                       # start the dev store and the API (localhost:8000)
+curl http://127.0.0.1:8000/health
+just build                    # build both images
+just edge                     # run the edge worker on data/samples/clip.mp4 and post an event to the API
+just edge /data/other.mp4     # another video (path as seen inside the container; ./data is mounted at /data)
+docker compose logs -f api    # see the event arrive
+just down                     # stop everything
+```
+
+Without compose:
+
+```bash
+docker build -f docker/api.Dockerfile  -t vbtso-api  .
+docker build -f docker/edge.Dockerfile -t vbtso-edge .
+docker run --rm -p 127.0.0.1:8000:8000 vbtso-api
+docker run --rm -e VIDEO_PATH=/data/clip.mp4 -v "$PWD/data/samples:/data:ro" vbtso-edge
+docker run --rm -it --entrypoint sh vbtso-edge     # look inside
+docker image ls | grep vbtso
+```
+
+No sample clip exists yet. Put any short video at `data/samples/clip.mp4` (the `data/` folder is DVC territory, see section 8). To generate a synthetic one:
+
+```bash
+mkdir -p data/samples
+docker run --rm --entrypoint python -v "$PWD/data/samples:/out" vbtso-edge -c "
+import cv2, numpy as np
+w = cv2.VideoWriter('/out/clip.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 25, (320, 240))
+for i in range(75):
+    f = np.zeros((240, 320, 3), np.uint8)
+    cv2.rectangle(f, (i * 3, 100), (i * 3 + 40, 140), (0, 255, 0), -1)
+    w.write(f)
+w.release()"
+```
+
+Secrets: never bake `.env` or an RTSP URL into an image (`.dockerignore` excludes them). Pass them at run time through environment variables, as compose does.
+
+Architecture note: the images are built for the machine's own architecture (arm64 on an Apple-silicon Mac, amd64 in CI). Multi-architecture builds are deferred until a deployment target (for example a Raspberry Pi) exists.
+
+CI builds both images on every PR (job "Docker images build") without pushing them.

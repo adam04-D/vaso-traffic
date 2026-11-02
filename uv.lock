@@ -3833,6 +3833,7 @@ train = [
 [package.dev-dependencies]
 dev = [
     { name = "dvc", extra = ["s3"] },
+    { name = "httpx" },
     { name = "jupyterlab" },
     { name = "nbstripout" },
     { name = "pre-commit" },
@@ -3865,6 +3866,7 @@ provides-extras = ["train", "edge", "api"]
 [package.metadata.requires-dev]
 dev = [
     { name = "dvc", extras = ["s3"], specifier = ">=3.55" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "jupyterlab", specifier = ">=4.2" },
     { name = "nbstripout", specifier = ">=0.8" },
     { name = "pre-commit", specifier = ">=4.0" },
