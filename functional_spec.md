@@ -142,35 +142,47 @@ quadrantChart
     RL controller: [0.9, 0.35]
 ```
 
-## 6. Roadmap `[Proposed]`
+## 6. Roadmap `[Decided]`
 
 ```mermaid
 gantt
     dateFormat  YYYY-MM-DD
-    title Phases (durations indicative)
-    section MVP
-    Spec + repo restructure       :a1, 2026-10-20, 7d
-    Data pipeline + versioning    :a2, after a1, 14d
-    Baseline detector + metrics   :a3, after a2, 14d
-    Tracking + zone counting      :a4, after a3, 14d
-    section Decision
-    SUMO sim + C0/C1/C2           :b1, after a4, 21d
-    section Later
-    Edge benchmarks, dashboard    :c1, after b1, 14d
-    RL controller (optional)      :c2, after c1, 21d
+    title Phases (durations indicative, time-boxed)
+    section Foundations (done)
+    Specs, M0-M3, review R1-R7     :done, f1, 2026-10-20, 14d
+    section MVP v1.0
+    P1 Data pipeline               :p1, 2026-11-09, 21d
+    P2 Detector                    :p2, after p1, 21d
+    P3 Tracking + counting         :p3, after p2, 14d
+    P4 SUMO C0-C2                  :p4, after p3, 21d
+    P5 Edge + API                  :p5, after p4, 14d
+    section Stretch (after v1.0)
+    RL, mini detector, dashboard, demo :s1, after p5, 28d
 ```
 
-**MVP** = recorded video in, per-zone counts out, validated against manual counts, with a simulated baseline comparison started.
-**Not now:** RL, multi-intersection, real-camera deployment, mobile apps.
+**MVP = v1.0** (review R1, D-010):
+- **T1:** YOLO26n trained COCO, then BMD-45, then Rabat. Per-class AP on the held-out Rabat video at each step.
+- **T2:** count MAPE ≤ 10% on fixed-camera public video.
+- **T3:** C0 Webster-tuned, C1, C2 in SUMO with ideal, camera-only and noisy sensing.
+- **T4:** edge to API to `/v1/advice`, in docker compose.
+
+Release tags: `v0.1` after P1, then one per milestone, `v1.0` = MVP. Each P milestone is time-boxed: when the box runs out, stretch items are cut, the box is not extended.
+
+**Stretch (after v1.0):** RL controller (X5), mini detector (X1), dashboard, Hugging Face Space demo, hardware.
+**Not planned:** multi-intersection, real-camera deployment, mobile apps, LLM features.
+
+**Claims policy (D-010):**
+- The README and model cards say "advisory, validated in simulation" and "trained on developing-city fixed CCTV, fine-tuned and evaluated on Rabat street footage".
+- They never say "deployed", "validated on Rabat cameras", or a congestion reduction without "in simulation, under these assumptions".
 
 ## 7. Open questions
 
 1. ~~Final project name.~~ Resolved, see D-008.
 2. ~~Are `tram` and `urgence` core or local classes?~~ Resolved: evaluation-only (section 3).
-3. Which public datasets pass the licence check (see technical_spec section 2.3)?
+3. ~~Which public datasets pass the licence check?~~ Resolved in review R2 (technical 2.3); remaining confirmations are P1 issues.
 4. ~~Fixed-camera footage of Rabat?~~ Resolved: no own recording; public Rabat data (D-009). Reopen if a vantage point appears.
 7. Origin and licence of the legacy `CCTV.v9` Roboflow dataset (owner checking).
-5. Which Rabat intersection becomes the simulated case study?
+5. Which Rabat intersection becomes the simulated case study? To be proposed from OpenStreetMap during P4 and confirmed by the owner (T-028).
 6. ~~Licence of this repo.~~ Resolved: AGPL-3.0 (technical_spec section 3.4, T-013).
 
 ## 8. Decision log
@@ -182,15 +194,17 @@ gantt
 | D-003 | 2026-10-20 | Generic core, Rabat as flagship case | Decided | Comparable metrics, plus a hard local test. |
 | D-004 | 2026-10-20 | Free/low-cost compute, object storage + DVC instead of Drive | Decided | Reproducibility, real data-engineering practice. |
 | D-005 | 2026-10-20 | Tiered control: fixed-time → Webster/max-pressure → optional RL in SUMO | Decided | Always keep a baseline to beat. |
-| D-006 | 2026-10-20 | System is advisory only | Proposed | Safety and honesty of claims. |
+| D-006 | 2026-10-20 | System is advisory only | Decided (2026-11-02) | Safety and honesty of claims. |
 | D-007 | 2026-10-20 | Publish datasets/weights on Hugging Face Hub; no VLM pre-labelling or judge-model evaluation; amended 2026-11-02: VLMs allowed offline only for rare-class label QA and as a zero-shot baseline (technical T-012) | Decided | Portfolio visibility without extra complexity. |
 | D-008 | 2026-11-02 | Project renamed Vision-Based Traffic Signal Optimisation (VBTSO); repo `vaso-traffic` | Decided | Descriptive name (computer vision applied to signal optimisation), city-agnostic, replaces the hackathon name. |
 | D-009 | 2026-11-02 | No own Rabat recording: core trained on BMD-45, Rabat via the YouTube street frames (fine-tune on 2 videos, test on the held-out 3rd) and MoVITS if usable, `grand_taxi` a stretch class; claims say "fine-tuned and evaluated on Rabat street footage", never "validated on Rabat cameras" | Decided | Honest claims; see technical T-018 |
+| D-010 | 2026-11-02 | MVP = v1.0 as in section 6; stretch after v1.0; claims policy; MLflow on DagsHub, RF-DETR Nano comparison, FastAPI only (reviews R1, R3 to R7) | Decided | Scope control and honest claims; technical T-023 to T-028 |
 
 ## 9. Changelog
 
 | Date | Change |
 |---|---|
+| 2026-11-02 | Reviews R1, R3 to R7: roadmap and MVP rewritten, claims policy, D-006 decided, D-010, open questions 3 and 5 updated. |
 | 2026-11-02 | Section 3 and D-009: YouTube Rabat frames used for training and testing, split by video. |
 | 2026-11-02 | Review R2: section 3 rewritten (BMD-45 base, `three_wheeler`, evaluation-only rare classes), D-009, open questions 2 and 4 closed, 7 added. |
 | 2026-11-02 | Closed open question 6 (licence AGPL-3.0). |
