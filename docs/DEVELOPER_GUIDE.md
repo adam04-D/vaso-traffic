@@ -260,7 +260,8 @@ The local store is Adobe S3Mock: it accepts any credentials and is for developme
 
 ```python
 import os
-from kaggle_secrets import UserSecretsClient   # Colab: from google.colab import userdata
+from kaggle_secrets import UserSecretsClient  # Colab: from google.colab import userdata
+
 s = UserSecretsClient()
 for k in ["AWS_ENDPOINT_URL", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]:
     os.environ[k] = s.get_secret(k)
