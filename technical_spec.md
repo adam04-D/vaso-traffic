@@ -45,19 +45,39 @@ flowchart TD
 - Every image carries `scene_id`, `source`, `condition` (day/night/rain), `licence`.
 - A **dataset card** records origin, licence, class counts, known biases, and the exact split rule.
 
-### 2.3 Sourcing decision matrix `[Proposed]`
+### 2.3 Sources `[Decided]`
 
-The single largest weakness is data. Matrix to fill in; entries marked *verify* were not confirmed from official licence texts.
+Full analysis, evidence and licence checks: [`docs/review/R2-data-engineering.md`](docs/review/R2-data-engineering.md).
 
-| Source | Domain match | Labels | Licence | Effort | Notes |
-|---|---|---|---|---|---|
-| Own YouTube drive videos (current) | Poor (moving camera) | None | Unclear; platform terms, third-party footage | Low | Keep as a hard out-of-domain **test**, not as the training core. |
-| UA-DETRAC | Good (fixed traffic cameras) | Boxes + tracks | *Verify* (research terms likely) | Low | Also gives tracking ground truth for T2. |
-| VisDrone | Medium (aerial) | Boxes | *Verify* | Low | Different viewpoint; use for robustness only. |
-| BDD100K | Medium (dashcam) | Boxes | *Verify* (sources conflict: BSD-3 vs. "other") | Low | Day/night/rain variety. |
-| Roboflow Universe public sets | Variable | Boxes | Per dataset | Low | Check each licence; label taxonomies differ. |
-| Synthetic (CARLA / SUMO + renderer) | Controllable | Free, exact | Own | Medium | Can generate rare classes and weather; sim-to-real gap to measure. |
-| Own fixed-camera recording | Best | Manual | Own | High | Only if a safe vantage point is available; plate/face privacy applies. |
+| Layer | Source | View | Licence | Role |
+|---|---|---|---|---|
+| Base | **BMD-45** (IISc 2026, 45K images, 480K boxes, 3.6K Safe-City cameras) | Fixed CCTV | CC BY 4.0 (*confirm LICENSE file*) | Core training set |
+| Domain | **MoVITS** (Rabat, Mendeley) | Stereo system, *verify fixed or moving* | CC BY-NC-SA 4.0 | Rabat fine-tuning/test, counting ground truth if fixed video |
+| Optional | MIO-TCD | Fixed cameras | CC BY-NC-SA 4.0 | Extra pretraining or robustness |
+| Eval only | UA-DETRAC | Fixed cameras | *Not confirmed* | Tracking/counting evaluation, once licence confirmed |
+| Rabat | **YouTube drive-through frames** (3 videos, 1,329 kept frames, day/night/rain) | Moving, street level | Third-party: training use a grey area, never redistributed | Rabat fine-tuning (2 videos) and held-out test (1 video), split by video; never published |
+| Legacy | `CCTV.v9` Roboflow export | Mixed | Unknown (owner checking) | Frozen until licence known |
+| Dropped | VisDrone (aerial), BDD100K (dashcam) | – | NC-SA / BSD-3 | Wrong viewpoint |
+
+No own fixed-camera recording is available (owner, 2026-11-02). Rabat is represented by the YouTube street footage (real Rabat traffic, moving camera) and MoVITS if usable. Claims are worded accordingly (functional D-009). More Rabat videos, preferably fixed-viewpoint, are searched for in P1.
+
+Pipeline rules (T-019):
+- Public datasets are downloaded by an **ingest** stage at a pinned revision with checksums. They are **not copied into R2**, which keeps the bucket in the free tier and avoids redistribution.
+- `configs/taxonomy.yaml` is the class contract: core `car`, `bus`, `truck`, `motorcycle`, `bicycle`, `three_wheeler`; local `grand_taxi` (stretch); `tram` and `emergency` evaluation-only. An unmapped source class fails the pipeline.
+- `catalogue.parquet` (DVC-versioned) holds one row per image: `image_id`, `sha256`, `source`, `source_revision`, `camera_id`/`scene_id`, `condition`, `licence`, `split`, per-class box counts. Splits, licence filters, statistics and the dataset card are derived from it.
+- A **validate** stage is a hard gate: boxes in bounds, known classes, no near-duplicate across splits, a minimum box count per class per split, empty images at most 15%.
+- Labelling of own or relabelled data uses **CVAT, self-hosted** (T-020). Private footage never goes to a public annotation service.
+
+```mermaid
+flowchart LR
+    ING[ingest<br/>pinned download + checksums] --> CONV[convert<br/>common format + taxonomy map]
+    YT[own frames] --> FIL[filter<br/>dark / blur / near-dup] --> LAB[label in CVAT]
+    CONV --> CAT[(catalogue.parquet)]
+    LAB --> CAT
+    CAT --> SPL[split<br/>by camera / scene]
+    SPL --> VAL[validate<br/>hard gate]
+    VAL --> EXP[export<br/>YOLO dataset + card]
+```
 
 ### 2.4 Split policy `[Proposed]`
 
@@ -127,7 +147,7 @@ Rule: a Hub release is cut from a tagged git commit + DVC dataset version, so it
 
 YOLO26 is an NMS-free Ultralytics model family released around late 2025 (sources disagree on the exact date) with nano to extra-large sizes. Ultralytics' own docs recommend YOLO26 and YOLO11 for stable production use. We keep YOLO26n as the default **but benchmark it** against YOLO11n (and optionally an RT-DETR-class model) on the same scene-level split before deciding, because the choice should be a measurement.
 
-### 3.3 Imbalance handling `[Proposed]`
+### 3.3 Imbalance handling `[Decided]`
 
 Current counts: voiture 7,109 (89.8%), camion 214, moto 203, bus 190, Grand Taxi 168, tram 12, Triporteur 11, urgence 7.
 
@@ -139,11 +159,12 @@ xychart-beta
     bar [7109, 214, 203, 190, 168, 12, 11, 7]
 ```
 
-With 7 to 12 examples, a class cannot be learned or even evaluated reliably: a test split may hold 0 or 1 instance. Options, in order of cost:
-1. More data for those classes (public sets, synthetic generation, targeted collection). Strongest fix.
-2. Class-balanced image sampling (a custom sampler or oversampling the file list; Ultralytics' built-in options to be verified).
-3. Loss re-weighting / focal-style loss via a custom trainer.
-4. Merge or drop classes that cannot be evaluated, and say so.
+With 7 to 12 examples, a class cannot be learned or even evaluated reliably: a test split may hold 0 or 1 instance. Plan (T-021), in order:
+1. **More data:** BMD-45 brings thousands of boxes for buses, trucks, motorcycles and three-wheelers (the old `Triporteur` merges into core `three_wheeler`).
+2. **`cls_pw`:** current Ultralytics class-weight power (0 = off, 1 = full inverse frequency), verified in `ultralytics/cfg/default.yaml` on 2026-11-02. The old notes' `image_weights` and `fl_gamma` **no longer exist** and are dropped.
+3. **Dataset-level oversampling** of rare classes in the split/export stage, plus copy-paste augmentation; empty images capped at 15%.
+4. **Custom focal and class-balanced losses** stay in X3 as the from-scratch comparison.
+5. Classes that still cannot be evaluated (`tram`, `emergency`) are evaluation-only and reported with their box counts, never averaged into mAP.
 Evaluation always reports per-class AP with the box count next to it.
 
 ### 3.4 Licence `[Decided]`
@@ -347,11 +368,18 @@ Order of work: X3 and X4 first (cheap, they reuse the existing training loop), t
 | T-015 | 2026-11-02 | Environment: uv (Python 3.12, `pyproject.toml` + committed `uv.lock`) replaces conda/pip/`requirements.txt`; `just` as task runner; ruff + pytest; pre-commit (ruff, nbstripout); heavy deps as extras (`train`, `edge`, `api`), tooling as a `dev` group | Decided | R1, R3 |
 | T-016 | 2026-11-02 | DVC remotes: `r2` (Cloudflare R2, shared, default) and `local` (S3Mock in Docker, offline dev); credentials only through environment variables or git-ignored `.dvc/config.local`; store bound to localhost, no real data | Decided | R1, R3; Kaggle/Colab cannot reach a MinIO on the Mac, so the shared remote must be cloud-hosted |
 | T-017 | 2026-11-02 | Containers: multi-stage uv-based images for `api` and `edge` only (training stays on uv), `python:3.12.12-slim-bookworm` and uv 0.13.5 pinned, non-root user, API health check, edge has no port; compose with profile `edge`; CI builds both images on PRs; images built for the host architecture, multi-arch deferred until a hardware target exists | Decided | R3 (reproducible deploy), R7 |
+| T-018 | 2026-11-02 | Data strategy: BMD-45 (fixed CCTV, CC BY 4.0) as base, Rabat via the YouTube street frames (fine-tune on 2 videos, test on the held-out 3rd) and MoVITS if usable; VisDrone and BDD100K dropped | Decided | R2, R3; review R2 |
+| T-019 | 2026-11-02 | Data pipeline: pinned ingest (public data not copied to R2), taxonomy contract `configs/taxonomy.yaml` with core `three_wheeler`, `catalogue.parquet`, validate stage as hard gate | Decided | R1, R2 |
+| T-020 | 2026-11-02 | Labelling with CVAT self-hosted (Docker); Roboflow free plan rejected for private footage (public projects) | Decided | R7 privacy |
+| T-021 | 2026-11-02 | Imbalance: `cls_pw` + dataset oversampling + copy-paste + negative cap; `image_weights`/`fl_gamma` dropped (removed from Ultralytics) | Decided | R3 |
+| T-022 | 2026-11-02 | Release rules: own raw footage never published; faces and plates blurred before any release; CC BY and NC-SA data released separately; model cards state training-data licences | Decided | R7, licences |
 
 ## 11. Changelog
 
 | Date | Change |
 |---|---|
+| 2026-11-02 | YouTube Rabat frames used for fine-tuning and testing (split by video), not only as an OOD test; 2.3 and T-018 updated. |
+| 2026-11-02 | Review R2 (data engineering): 2.3 rewritten from verified sources, 3.3 imbalance corrected (`cls_pw`), T-018 to T-022. |
 | 2026-11-02 | M3 containers: api and edge images, schema v1 pydantic model and /events stub, edge stub, compose, CI image build (T-017). |
 | 2026-11-02 | M2 data platform: DVC remotes r2 + local (T-016), docker-compose with an S3Mock dev store (MinIO images unavailable), just recipes, guide section 8. |
 | 2026-11-02 | M1 environment: section 4 rewritten to the real repo layout; T-015 (uv, just, ruff, pre-commit, CI). |

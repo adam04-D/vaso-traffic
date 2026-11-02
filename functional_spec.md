@@ -70,27 +70,28 @@ flowchart LR
 
 Real signal actuation · multi-intersection coordination · deployment on a real city camera · license-plate reading (privacy, and not needed for counting) · field validation of the controller.
 
-## 3. Domain strategy `[Proposed]`
+## 3. Domain strategy `[Decided]`
 
 The original project is Rabat-only, with classes such as *Grand Taxi* and *Triporteur*. That is a good hard case but a poor foundation: a recruiter cannot compare it with anything, and the data is too thin (see section 5).
 
-**Decision proposed:** a city-agnostic core with a pluggable local-class layer.
+**Decision (review R2):** a city-agnostic core trained on public fixed-CCTV data from a developing city (BMD-45), adapted to Rabat with public Rabat data, plus a small local-class layer.
 
 ```mermaid
 flowchart TD
     ROOT[Vehicle taxonomy]
-    ROOT --> CORE[Generic core: always trained]
+    ROOT --> CORE[Core: always trained]
+    ROOT --> EVAL[Evaluation-only: too rare]
     ROOT --> LOCAL[Local extension: per city]
-    CORE --> car & bus & truck & motorcycle & bicycle
-    CORE --> special[emergency vehicle / tram]
+    CORE --> car & bus & truck & motorcycle & bicycle & TW[three_wheeler<br/>auto-rickshaw, triporteur]
+    EVAL --> tram & emergency
     LOCAL --> RBT[Rabat]
-    RBT --> GT[grand taxi]
-    RBT --> TRI[triporteur]
+    RBT --> GT[grand_taxi<br/>stretch]
 ```
 
-- Generic classes are trained on large public data, so metrics are comparable with published results.
-- Rabat classes are the **flagship stress test**: few samples, visually specific, so they exercise few-shot and imbalance techniques.
-- Open question: is `tram`/`emergency` core or local? (They are rare everywhere.)
+- Core classes are trained on large public data, so metrics are comparable with published results.
+- `three_wheeler` merges Morocco's triporteur with India's auto-rickshaw, so the model learns from thousands of examples instead of 11.
+- `tram` and `emergency` are too rare everywhere: they are reported with their counts, never averaged into mAP.
+- **No own fixed-camera footage of Rabat exists** (owner, 2026-11-02). Rabat is represented by the YouTube frames: real Rabat streets filmed from a moving car (three videos: day, night, rain). They are used to **fine-tune on two videos and test on the third**, never trained on. MoVITS (public, recorded in Rabat) is added if usable. The story is **domain adaptation**: developing-city fixed CCTV to Rabat streets, with each step measured on the held-out Rabat video. Claims are worded that way (D-009).
 
 ## 4. Control problem `[Proposed]`
 
@@ -165,9 +166,10 @@ gantt
 ## 7. Open questions
 
 1. ~~Final project name.~~ Resolved, see D-008.
-2. Are `tram` and `urgence` core or local classes?
+2. ~~Are `tram` and `urgence` core or local classes?~~ Resolved: evaluation-only (section 3).
 3. Which public datasets pass the licence check (see technical_spec section 2.3)?
-4. Do we have access to any fixed-camera footage of Rabat (public webcams, or our own recording)?
+4. ~~Fixed-camera footage of Rabat?~~ Resolved: no own recording; public Rabat data (D-009). Reopen if a vantage point appears.
+7. Origin and licence of the legacy `CCTV.v9` Roboflow dataset (owner checking).
 5. Which Rabat intersection becomes the simulated case study?
 6. ~~Licence of this repo.~~ Resolved: AGPL-3.0 (technical_spec section 3.4, T-013).
 
@@ -183,11 +185,14 @@ gantt
 | D-006 | 2026-10-20 | System is advisory only | Proposed | Safety and honesty of claims. |
 | D-007 | 2026-10-20 | Publish datasets/weights on Hugging Face Hub; no VLM pre-labelling or judge-model evaluation; amended 2026-11-02: VLMs allowed offline only for rare-class label QA and as a zero-shot baseline (technical T-012) | Decided | Portfolio visibility without extra complexity. |
 | D-008 | 2026-11-02 | Project renamed Vision-Based Traffic Signal Optimisation (VBTSO); repo `vaso-traffic` | Decided | Descriptive name (computer vision applied to signal optimisation), city-agnostic, replaces the hackathon name. |
+| D-009 | 2026-11-02 | No own Rabat recording: core trained on BMD-45, Rabat via the YouTube street frames (fine-tune on 2 videos, test on the held-out 3rd) and MoVITS if usable, `grand_taxi` a stretch class; claims say "fine-tuned and evaluated on Rabat street footage", never "validated on Rabat cameras" | Decided | Honest claims; see technical T-018 |
 
 ## 9. Changelog
 
 | Date | Change |
 |---|---|
+| 2026-11-02 | Section 3 and D-009: YouTube Rabat frames used for training and testing, split by video. |
+| 2026-11-02 | Review R2: section 3 rewritten (BMD-45 base, `three_wheeler`, evaluation-only rare classes), D-009, open questions 2 and 4 closed, 7 added. |
 | 2026-11-02 | Closed open question 6 (licence AGPL-3.0). |
 | 2026-11-02 | Amended D-007: offline VLM use allowed (technical T-012). |
 | 2026-11-02 | Renamed project to Vision-Based Traffic Signal Optimisation (VBTSO), D-008; closed open question 1; reordered D-006/D-007. |
