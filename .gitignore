@@ -36,3 +36,22 @@ data.yaml
 README.dataset.txt
 README.roboflow.txt
 
+
+# ----- Environment and secrets -----
+.venv/
+.env
+.env.*
+!.env.example
+
+# ----- Tooling caches -----
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# ----- DVC (the cache lives outside git) -----
+/.dvc/cache
+/.dvc/tmp

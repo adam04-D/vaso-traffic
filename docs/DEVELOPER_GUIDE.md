@@ -7,10 +7,12 @@ Setup and command cheat sheet for VBTSO. It grows with every milestone: each PR 
 | [1. Prerequisites](#1-prerequisites) | M0 |
 | [2. Git workflow](#2-git-workflow) | M0 |
 | [3. GitHub: issues, milestones, PRs](#3-github-issues-milestones-prs) | M0 |
-| 4. Python environment (uv) | M1 |
-| 5. Task runner (just) | M1 |
-| 6. Data versioning (DVC) | M2 |
-| 7. Docker and compose | M3 |
+| [4. Python environment (uv)](#4-python-environment-uv) | M1 |
+| [5. Task runner (just)](#5-task-runner-just) | M1 |
+| [6. Kaggle and Colab](#6-kaggle-and-colab) | M1 |
+| [7. Quality: lint, tests, hooks, CI](#7-quality-lint-tests-hooks-ci) | M1 |
+| 8. Data versioning (DVC) | M2 |
+| 9. Docker and compose | M3 |
 
 ---
 
@@ -109,3 +111,95 @@ gh pr merge --squash --delete-branch        # merge when CI is green
 ```
 
 In the PR description, write `Closes #12` so the issue closes when the PR is merged.
+
+## 4. Python environment (uv)
+
+uv replaces conda, Miniconda, pip, venv and requirements files. `pyproject.toml` declares dependencies; `uv.lock` pins exact versions and is committed.
+
+First time on a new machine:
+
+```bash
+git clone https://github.com/adam04-D/vaso-traffic.git && cd vaso-traffic
+just setup            # Python 3.12 + .venv + all extras + dev tools + git hooks (downloads PyTorch, a few GB)
+# or, to work on docs/specs/lint/tests only:
+just setup-light
+```
+
+Dependency layout:
+
+| Where | What | Install |
+|---|---|---|
+| core | numpy, pyyaml | always |
+| extra `train` | ultralytics, torch, torchvision, opencv, pandas, pillow, imagehash, matplotlib, roboflow | `uv sync --extra train` |
+| extra `edge` | onnxruntime, opencv | `uv sync --extra edge` |
+| extra `api` | fastapi, uvicorn, pydantic | `uv sync --extra api` |
+| group `dev` | ruff, pytest, pre-commit, nbstripout, dvc, jupyterlab | installed by default by `uv sync` |
+
+Everyday commands:
+
+```bash
+uv sync                          # make .venv match uv.lock (dev group only)
+uv sync --all-extras             # everything
+uv run <command>                 # run inside the project env, e.g. uv run python -m vbtso
+uv run pytest tests/test_smoke.py
+uv add numpy                     # add a core dependency (edits pyproject.toml and uv.lock)
+uv add --optional train kornia   # add a dependency to the `train` extra
+uv add --dev pytest-xdist        # add a developer tool to the dev group
+uv remove <package>
+uv lock --upgrade-package ultralytics   # upgrade one package (or: just upgrade ultralytics)
+uv tree                          # dependency tree
+uv python list                   # available Python versions
+uv python install 3.12           # install Python 3.12 (uv does this automatically)
+```
+
+Rules: never `pip install` into the project env, never edit `uv.lock` by hand, and commit `pyproject.toml` and `uv.lock` together in the same PR.
+
+Jupyter: `just lab`, or in VS Code select the `.venv` interpreter.
+
+## 5. Task runner (just)
+
+`just` with no arguments lists all recipes.
+
+| Recipe | What it does |
+|---|---|
+| `just setup` | First-time setup, all extras and git hooks |
+| `just setup-light` | Dev tools only, no PyTorch |
+| `just lint` | `ruff check` and `ruff format --check` (no changes made) |
+| `just fmt` | Auto-fix lint issues and format |
+| `just test` | pytest; extra arguments pass through, e.g. `just test -k smoke` |
+| `just check` | lint + test, what CI runs |
+| `just hooks` | Run all pre-commit hooks on all files |
+| `just nb-clean` | Strip outputs from all notebooks |
+| `just lab` | JupyterLab in the project env |
+| `just lock` | Regenerate `uv.lock` |
+| `just upgrade <pkg>` | Upgrade one dependency |
+| `just clean` | Remove caches and build artefacts |
+
+Recipes for DVC and Docker are added in milestones M2 and M3.
+
+## 6. Kaggle and Colab
+
+Training GPUs run outside the Mac, so the same code is installed from the repo:
+
+```bash
+pip install -q uv
+git clone https://github.com/adam04-D/vaso-traffic.git && cd vaso-traffic
+uv pip install --system ".[train]"     # the platform's own PyTorch is reused when it satisfies the pin
+```
+
+Secrets (R2 keys, `HF_TOKEN`, `ROBOFLOW_API_KEY`) go in Kaggle Secrets or Colab Secrets and are exported as environment variables, never written into a notebook. Data comes from DVC (milestone M2), not from Google Drive.
+
+## 7. Quality: lint, tests, hooks, CI
+
+- **ruff** lints and formats (line length 100). The legacy notebooks in `notebooks/` and `main.ipynb` are excluded until they are ported in P1.
+- **pytest** runs the tests in `tests/`.
+- **pre-commit** runs on every commit: YAML/TOML checks, end-of-file and whitespace fixes, large-file guard (1 MB), ruff, and **nbstripout**, which removes notebook outputs. The first commit that touches an old notebook will therefore change it; the old results are recorded in `docs/legacy_results.md`.
+- **CI** (`.github/workflows/ci.yml`) runs on every PR: PR-title check (Conventional Commits, types `feat fix docs exp data refactor test ci chore perf build style revert`) and `ruff` + `pytest` with `uv sync --frozen`.
+
+```bash
+just check                        # before pushing
+just hooks                        # run hooks on every file
+uv run pre-commit autoupdate      # bump hook versions (its own chore PR)
+```
+
+After the first CI run, add the two checks (`Lint and test`, `PR title (Conventional Commits)`) as required status checks in the `protect-main` ruleset: GitHub, Settings, Rules, Rulesets.

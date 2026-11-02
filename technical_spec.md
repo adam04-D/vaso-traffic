@@ -150,29 +150,37 @@ erDiagram
 
 A run is reproducible when (commit, dataset version, config) are all recorded. Tool: Weights & Biases or MLflow (choose one; MLflow is self-hostable). Hyperparameters move from notebook cells to `configs/*.yaml`.
 
-## 4. Code structure `[Proposed]`
+## 4. Code structure `[Decided]`
 
-Notebooks become exploration only; logic moves to a package.
+Notebooks become exploration only; logic lives in the `vbtso` package (`src` layout).
 
 ```text
 .
-├── README.md
+├── README.md  LICENSE  CONTRIBUTING.md
 ├── functional_spec.md / technical_spec.md
-├── pyproject.toml            # pinned deps, one source of truth
-├── dvc.yaml  .dvc/           # pipeline + data remote
+├── pyproject.toml            # single source of dependencies (extras: train, edge, api; group: dev)
+├── uv.lock                   # exact versions, committed
+├── .python-version           # 3.12
+├── justfile                  # task runner: setup, lint, test, check, ...
+├── .pre-commit-config.yaml   # ruff, nbstripout, file hygiene
+├── .env.example              # variable names only, never values
+├── dvc.yaml  .dvc/           # pipeline + data remote (milestone M2)
 ├── configs/                  # data.yaml, train/*.yaml, edge.yaml, zones/*.yaml
-├── src/<package>/
-│   ├── data/                 # extract, filter, split, validate
-│   ├── train/                # train, eval, export
-│   ├── edge/                 # detector, tracker, counter, publisher
-│   ├── control/              # fixed_time, webster, max_pressure, rl
-│   └── sim/                  # SUMO scenarios and runners
+├── src/vbtso/
+│   ├── data/                 # extract, filter, split, validate        (P1)
+│   ├── models/               # train, eval, export                     (P2)
+│   ├── tracking/             # tracker, zone counter                   (P3)
+│   ├── control/              # fixed_time, webster, max_pressure, rl   (P4)
+│   └── api/                  # event schema v1, ingestion service      (P5)
 ├── tests/                    # unit tests on pure functions + schema tests
-├── notebooks/                # exploration only
-└── .github/workflows/        # lint + tests
+├── notebooks/                # exploration only (legacy, ruff-excluded)
+├── docs/                     # DEVELOPER_GUIDE.md, legacy_results.md
+├── docker/                   # edge and API images (milestone M3)
+├── scripts/                  # github_setup.sh
+└── .github/                  # workflows, issue and PR templates
 ```
 
-Actual `requirements.txt` lacks `pyyaml`, `imagehash`, `matplotlib`, `Pillow` that the notebooks import `[Critiqued]`.
+Dependency model: the core install is tiny (`numpy`, `pyyaml`). Heavy stacks are **extras** so each environment installs only what it needs: `train` on Mac/Kaggle/Colab, `edge` on the device and in the edge image, `api` in the service image. Developer tools are a uv **dependency group** (`dev`) and are never installed on Kaggle/Colab or in images. The old `requirements.txt` (which lacked `pyyaml`, `imagehash`, `matplotlib`, `Pillow`) is removed.
 
 ## 5. Edge runtime
 
@@ -319,11 +327,13 @@ Order of work: X3 and X4 first (cheap, they reuse the existing training loop), t
 | T-012 | 2026-11-02 | Allow VLMs offline only: rare-class label QA (X8) and zero-shot baseline (X7). Still rejected: pre-labelling, judge-model evaluation, any VLM in the edge runtime or payload | Decided | R2, R3; keeps the privacy boundary and the metric-based evaluation |
 | T-013 | 2026-11-02 | Repo licence AGPL-3.0 (replaces MIT) | Decided | Matches Ultralytics AGPL-3.0 (section 3.4) |
 | T-014 | 2026-11-02 | Workflow: protected main, branch + PR for every change, squash-merge, Conventional Commits (extra types `exp`, `data`), GitHub issues and milestones; see CONTRIBUTING.md and docs/DEVELOPER_GUIDE.md | Decided | Traceability, enterprise-style process |
+| T-015 | 2026-11-02 | Environment: uv (Python 3.12, `pyproject.toml` + committed `uv.lock`) replaces conda/pip/`requirements.txt`; `just` as task runner; ruff + pytest; pre-commit (ruff, nbstripout); heavy deps as extras (`train`, `edge`, `api`), tooling as a `dev` group | Decided | R1, R3 |
 
 ## 11. Changelog
 
 | Date | Change |
 |---|---|
+| 2026-11-02 | M1 environment: section 4 rewritten to the real repo layout; T-015 (uv, just, ruff, pre-commit, CI). |
 | 2026-11-02 | M0 governance: licence AGPL-3.0 (3.4, T-013), contribution workflow (T-014). |
 | 2026-11-02 | Amended T-008 with T-012: offline VLM use allowed (X7, X8 in section 9). |
 | 2026-11-02 | Added section 9, custom implementations and ablations (T-011); decision log, changelog and sources renumbered to 10 to 12. |
