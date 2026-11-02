@@ -169,7 +169,7 @@ gantt
 3. Which public datasets pass the licence check (see technical_spec section 2.3)?
 4. Do we have access to any fixed-camera footage of Rabat (public webcams, or our own recording)?
 5. Which Rabat intersection becomes the simulated case study?
-6. Licence of this repo (see AGPL risk in technical_spec section 3.4).
+6. ~~Licence of this repo.~~ Resolved: AGPL-3.0 (technical_spec section 3.4, T-013).
 
 ## 8. Decision log
 
@@ -181,13 +181,15 @@ gantt
 | D-004 | 2026-10-20 | Free/low-cost compute, object storage + DVC instead of Drive | Decided | Reproducibility, real data-engineering practice. |
 | D-005 | 2026-10-20 | Tiered control: fixed-time → Webster/max-pressure → optional RL in SUMO | Decided | Always keep a baseline to beat. |
 | D-006 | 2026-10-20 | System is advisory only | Proposed | Safety and honesty of claims. |
-| D-007 | 2026-10-20 | Publish datasets/weights on Hugging Face Hub; no VLM pre-labelling or judge-model evaluation | Decided | Portfolio visibility without extra complexity. |
+| D-007 | 2026-10-20 | Publish datasets/weights on Hugging Face Hub; no VLM pre-labelling or judge-model evaluation; amended 2026-11-02: VLMs allowed offline only for rare-class label QA and as a zero-shot baseline (technical T-012) | Decided | Portfolio visibility without extra complexity. |
 | D-008 | 2026-11-02 | Project renamed Vision-Based Traffic Signal Optimisation (VBTSO); repo `vaso-traffic` | Decided | Descriptive name (computer vision applied to signal optimisation), city-agnostic, replaces the hackathon name. |
 
 ## 9. Changelog
 
 | Date | Change |
 |---|---|
+| 2026-11-02 | Closed open question 6 (licence AGPL-3.0). |
+| 2026-11-02 | Amended D-007: offline VLM use allowed (technical T-012). |
 | 2026-11-02 | Renamed project to Vision-Based Traffic Signal Optimisation (VBTSO), D-008; closed open question 1; reordered D-006/D-007. |
 | 2026-10-20 | Added D-007 (Hugging Face Hub; VLM rejected). |
 | 2026-10-20 | First version: vision, tiers, domain strategy, control problem, critique, roadmap. |

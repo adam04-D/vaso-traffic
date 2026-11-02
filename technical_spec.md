@@ -1,6 +1,6 @@
 # Technical Specification: Vision-Based Traffic Signal Optimisation (VBTSO)
 
-> **Living document.** Updated with every technology or feature decision; each change is logged in the [Decision log](#9-decision-log) and [Changelog](#10-changelog).
+> **Living document.** Updated with every technology or feature decision; each change is logged in the [Decision log](#10-decision-log) and [Changelog](#11-changelog).
 > Status tags: `[Current]` in the repo today · `[Critiqued]` reviewed and found weak · `[Proposed]` suggested · `[Decided]` agreed.
 > Companion: [functional_spec.md](functional_spec.md). The stack is **derived from requirements**: where a tool is named, the requirement it serves is stated.
 
@@ -131,9 +131,9 @@ With 7 to 12 examples, a class cannot be learned or even evaluated reliably: a t
 4. Merge or drop classes that cannot be evaluated, and say so.
 Evaluation always reports per-class AP with the box count next to it.
 
-### 3.4 Licence risk `[Proposed]`
+### 3.4 Licence `[Decided]`
 
-Ultralytics code/weights are AGPL-3.0 (with a paid Enterprise licence). A public portfolio repo is fine, but the repo's own licence (currently MIT-style `LICENSE` file, *verify*) may conflict if the project distributes derived work. Decision needed (open question 6); alternatives with permissive licences exist if this matters.
+Ultralytics code and weights are AGPL-3.0 (with a paid Enterprise licence for closed-source use). The repo was MIT, which conflicts once the project imports and distributes AGPL code. Decision T-013: the repo is **AGPL-3.0**, matching its main dependency. Consequence: anyone may reuse the code but must publish their changes, including when it is offered as a network service. If a client ever needs closed-source use, the options are an Ultralytics Enterprise licence or a permissively licensed detector (e.g. Apache-2.0 RT-DETR).
 
 ### 3.5 Experiment tracking `[Proposed]`
 
@@ -271,7 +271,37 @@ n8n is optional glue; a small FastAPI service that validates the schema and stor
 | Control | Simulation comparison with fixed seeds. |
 | Integration | JSON schema validation. |
 
-## 9. Decision log
+## 9. Custom implementations and ablations `[Proposed]`
+
+The pipeline uses off-the-shelf components (Ultralytics detector, ByteTrack-style tracker, SUMO). This section lists the parts we also write ourselves, each compared against its off-the-shelf counterpart on the same data, so the project demonstrates the underlying algorithms and not only the tooling. Every item is additive: the baseline pipeline in sections 2 to 7 works without any of them, and an item is dropped if it does not pay off.
+
+| ID | Component | What we write | Compared against | Acceptance check |
+|---|---|---|---|---|
+| X1 | Mini detector | Small anchor-free detector in PyTorch: backbone, detection head, GIoU loss, NMS | YOLO26n on the same scene-level split | Per-class mAP50 reported for both; gap and likely causes documented. |
+| X2 | Tracker | Kalman filter (constant-velocity) plus Hungarian matching on IoU | ByteTrack-style tracker from Ultralytics | Same clips: ID switches and zone-count error for both. |
+| X3 | Imbalance loss | Focal loss and class-balanced loss implemented from the papers | Default loss; oversampling of rare classes | Ablation table with per-class AP for `urgence`, `Triporteur`, `tram`; replaces the unsupported `fl_gamma` setting (section 3.3). |
+| X4 | Ablation study | Controlled sweeps over input resolution, augmentation and model size | The baseline run | One run per factor, one change at a time, all logged in the tracker (section 3.5); results in a single table. |
+| X5 | RL controller (C3) | DQN or PPO agent over the SUMO state defined in section 6.1 | C2 max-pressure, C0 fixed-time | Average delay over several demand levels and seeds; reported as a win only if it beats max-pressure. |
+| X6 | Domain-shift experiment | Train on public data, test on Rabat footage, then fine-tune | Zero-shot result | mAP before and after fine-tuning; a plot of mAP against the number of Rabat images used. |
+| X7 | Zero-shot baseline | Evaluation script running an open-vocabulary detector (e.g. Grounding DINO, OWL-ViT) on the held-out Rabat frames, no training | Our fine-tuned detector | Extra row in the X6 table: mAP50 per class, zero-shot versus trained. Offline only. |
+| X8 | Rare-class label QA | Offline script: a small open-source VLM classifies cropped boxes of `urgence`, `Triporteur`, `tram`; disagreements are queued for manual re-check | Manual review alone | Number of label errors found, and per-class AP before and after correction. The VLM never writes labels. |
+
+```mermaid
+flowchart LR
+    BASE["Baseline pipeline<br/>(sections 2 to 7)"] --> X1 & X2 & X3 & X4 & X5 & X6 & X7 & X8
+    X1["X1 mini detector"] --> CMP1["vs YOLO26n"]
+    X2["X2 tracker"] --> CMP2["vs ByteTrack-style"]
+    X3["X3 imbalance losses"] --> CMP3["vs default loss"]
+    X4["X4 ablations"] --> CMP4["vs baseline run"]
+    X5["X5 RL agent"] --> CMP5["vs max-pressure"]
+    X6["X6 domain shift"] --> CMP6["vs zero-shot"]
+    X7["X7 zero-shot baseline"] --> CMP7["vs fine-tuned"]
+    X8["X8 rare-class QA"] --> CMP8["vs manual review only"]
+```
+
+Order of work: X3 and X4 first (cheap, they reuse the existing training loop), then X2, then X1, then X6, with X7 beside it (same test set) and X8 once the rare-class crops are annotated. X5 comes last and only after C2 works in SUMO (section 6.2). Each item gets its own tracked run and a short write-up in the repo, whether or not it beats the baseline.
+
+## 10. Decision log
 
 | ID | Date | Decision | Status | Requirement |
 |---|---|---|---|---|
@@ -282,19 +312,26 @@ n8n is optional glue; a small FastAPI service that validates the schema and stor
 | T-005 | 2026-10-20 | SUMO as controller validation ground truth | Proposed | R6 |
 | T-006 | 2026-10-20 | Experiment tracker: W&B or MLflow | Open | R1 |
 | T-007 | 2026-10-20 | Integration layer: n8n vs FastAPI | Open | R7 |
-| T-008 | 2026-10-20 | VLM/foundation-model pre-labelling and judge-model evaluation | Rejected (owner) | Manual annotation + metric-based evaluation instead; avoids extra complexity |
+| T-008 | 2026-10-20 | VLM/foundation-model pre-labelling and judge-model evaluation | Rejected (owner); amended 2026-11-02 by T-012 | Manual annotation + metric-based evaluation instead; avoids extra complexity |
 | T-009 | 2026-10-20 | Hugging Face Hub for publishing datasets, weights, model/dataset cards (DVC stays the working store) | Decided | R1 |
 | T-010 | 2026-11-02 | Project renamed VBTSO (see functional D-008); repo `vaso-traffic`; use `vbtso` as the Python package name when `src/` is created | Decided | Naming consistency |
+| T-011 | 2026-11-02 | Add custom implementations and ablations X1 to X6 (section 9), each compared against its off-the-shelf counterpart; all optional and additive | Proposed | R3, R4, R5, R6 |
+| T-012 | 2026-11-02 | Allow VLMs offline only: rare-class label QA (X8) and zero-shot baseline (X7). Still rejected: pre-labelling, judge-model evaluation, any VLM in the edge runtime or payload | Decided | R2, R3; keeps the privacy boundary and the metric-based evaluation |
+| T-013 | 2026-11-02 | Repo licence AGPL-3.0 (replaces MIT) | Decided | Matches Ultralytics AGPL-3.0 (section 3.4) |
+| T-014 | 2026-11-02 | Workflow: protected main, branch + PR for every change, squash-merge, Conventional Commits (extra types `exp`, `data`), GitHub issues and milestones; see CONTRIBUTING.md and docs/DEVELOPER_GUIDE.md | Decided | Traceability, enterprise-style process |
 
-## 10. Changelog
+## 11. Changelog
 
 | Date | Change |
 |---|---|
+| 2026-11-02 | M0 governance: licence AGPL-3.0 (3.4, T-013), contribution workflow (T-014). |
+| 2026-11-02 | Amended T-008 with T-012: offline VLM use allowed (X7, X8 in section 9). |
+| 2026-11-02 | Added section 9, custom implementations and ablations (T-011); decision log, changelog and sources renumbered to 10 to 12. |
 | 2026-11-02 | Renamed project to VBTSO (T-010). |
 | 2026-10-20 | Added Hugging Face Hub (2.6, T-009); removed VLM pre-labelling from pipeline and sourcing (T-008). |
 | 2026-10-20 | First version, from a full read of `main.ipynb`, `notebooks/01`, `notebooks/02`; external facts from web searches (YOLO26, dataset licences, SUMO benchmarks), several flagged *verify*. |
 
-## 11. Sources consulted
+## 12. Sources consulted
 
 - [Ultralytics YOLO26 page](https://www.ultralytics.com/yolo/yolo26) and [Roboflow YOLO26 model page](https://inference-models.roboflow.com/models/yolo26-object-detection/): NMS-free design, sizes, AGPL-3.0/Enterprise licensing.
 - [UA-DETRAC paper](https://arxiv.org/pdf/1511.04136): fixed-camera detection and tracking benchmark.
