@@ -1,0 +1,72 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vbtso"
+version = "0.1.0"
+description = "Vision-Based Traffic Signal Optimisation: fixed-camera vehicle counting and advisory signal timing, validated in simulation."
+readme = "README.md"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "Adam Daoudi" }]
+requires-python = ">=3.12,<3.14"
+# Core runtime stays tiny; every heavy stack is an extra so each environment installs only what it needs.
+dependencies = [
+    "numpy>=1.26",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# Training and data engineering (Mac, Kaggle, Colab):  uv sync --extra train   |   pip install ".[train]"
+train = [
+    "ultralytics>=8.4",
+    "torch>=2.5",
+    "torchvision>=0.20",
+    "opencv-python-headless>=4.8",
+    "pandas>=2.1",
+    "pillow>=10.0",
+    "imagehash>=4.3",
+    "matplotlib>=3.8",
+    "roboflow>=1.1",
+]
+# Edge inference runtime (exported ONNX model, no PyTorch)
+edge = [
+    "onnxruntime>=1.18",
+    "opencv-python-headless>=4.8",
+]
+# Event-ingestion service
+api = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+]
+
+[dependency-groups]
+# Developer tooling, installed by uv only (never shipped, never installed on Kaggle/Colab)
+dev = [
+    "ruff>=0.8",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "pre-commit>=4.0",
+    "nbstripout>=0.8",
+    "dvc[s3]>=3.55",
+    "jupyterlab>=4.2",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vbtso"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+# Legacy hackathon notebooks are kept for reference and will be ported into src/vbtso (milestone P1).
+extend-exclude = ["notebooks", "main.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
