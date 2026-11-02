@@ -143,9 +143,9 @@ Rule: a Hub release is cut from a tagged git commit + DVC dataset version, so it
 | Inconsistent model | `main.ipynb` uses YOLO11n and 4 classes. |
 | Everything lives in notebook cells | Not testable or reusable. |
 
-### 3.2 Model choice `[Proposed]`
+### 3.2 Model choice `[Decided]`
 
-YOLO26 is an NMS-free Ultralytics model family released around late 2025 (sources disagree on the exact date) with nano to extra-large sizes. Ultralytics' own docs recommend YOLO26 and YOLO11 for stable production use. We keep YOLO26n as the default **but benchmark it** against YOLO11n (and optionally an RT-DETR-class model) on the same scene-level split before deciding, because the choice should be a measurement.
+YOLO26n is the default: NMS-free, 40.9 COCO mAP50-95 against 39.5 for YOLO11n, about 31% faster on CPU ONNX (Ultralytics docs). The comparison model is **RF-DETR Nano** (Apache-2.0, vendor-reported 48.4 COCO mAP), which replaces YOLO11n. It is more informative, and it is the licence escape hatch from AGPL (3.4). Both are trained with the same transfer chain (COCO, then BMD-45, then Rabat), on the same splits, and compared on accuracy **and** latency. The `s` size is tried if Mac latency allows. Evaluation protocol: per-class AP with box counts, per condition, on the held-out Rabat video, 3 seeds for published numbers. Details in [`docs/review/R3-computer-vision.md`](docs/review/R3-computer-vision.md) (T-024).
 
 ### 3.3 Imbalance handling `[Decided]`
 
@@ -171,7 +171,7 @@ Evaluation always reports per-class AP with the box count next to it.
 
 Ultralytics code and weights are AGPL-3.0 (with a paid Enterprise licence for closed-source use). The repo was MIT, which conflicts once the project imports and distributes AGPL code. Decision T-013: the repo is **AGPL-3.0**, matching its main dependency. Consequence: anyone may reuse the code but must publish their changes, including when it is offered as a network service. If a client ever needs closed-source use, the options are an Ultralytics Enterprise licence or a permissively licensed detector (e.g. Apache-2.0 RT-DETR).
 
-### 3.5 Experiment tracking `[Proposed]`
+### 3.5 Experiment tracking `[Decided]`
 
 ```mermaid
 erDiagram
@@ -184,7 +184,7 @@ erDiagram
     EXPORT ||--o{ BENCHMARK : measured_on
 ```
 
-A run is reproducible when (commit, dataset version, config) are all recorded. Tool: Weights & Biases or MLflow (choose one; MLflow is self-hostable). Hyperparameters move from notebook cells to `configs/*.yaml`.
+A run is reproducible when (commit, dataset version, config) are all recorded. **Tool: MLflow on DagsHub** (T-006): a hosted MLflow server reachable from Kaggle and Colab, with a model registry; a tracker on the Mac would be unreachable, as MinIO was. Hyperparameters move from notebook cells to `configs/train/*.yaml`, and training has one entry point (`python -m vbtso.models.train --config ...`); notebooks become thin runners. Every run logs config, git commit, DVC dataset hash, `uv.lock` hash, seed, hardware and per-class metrics. A **model gate** promotes a candidate only if it is not worse on any core class on the fixed test sets. DVC versions data only; weights live in MLflow artefacts and, for releases, on Hugging Face. A manual or nightly CPU smoke-training workflow guards the training code. Details in [`docs/review/R4-mlops.md`](docs/review/R4-mlops.md) (T-025).
 
 ## 4. Code structure `[Decided]`
 
@@ -226,7 +226,7 @@ Dependency model: the core install is tiny (`numpy`, `pyyaml`). Heavy stacks are
 
 `main.ipynb` cell 7 loops over RTSP frames, runs the model, and every 30 s counts boxes **in one frame** and posts them. Problems: a single frame count is not flow (R5); no tracking, so the same car is not recognised across frames; thresholds hardcoded; "QUEUED" is printed but nothing is queued; credentials in the example URL; reconnect logic creates a new capture without releasing the old one.
 
-### 5.2 Target design `[Proposed]`
+### 5.2 Target design `[Decided]`
 
 ```mermaid
 sequenceDiagram
@@ -245,18 +245,20 @@ sequenceDiagram
     P->>API: POST event (versioned schema)
 ```
 
-- Tracker: ByteTrack-style (available in Ultralytics' tracking mode, *verify*), giving stable IDs.
+- Tracker: BoT-SORT or ByteTrack (both built into Ultralytics; BoT-SORT 64.6 against 63.1 HOTA on MOT17), chosen on our own clips. At the edge, a standalone tracker (X2 or a light ByteTrack port) avoids shipping Ultralytics.
+- **Counting is the product metric:** count MAPE per line per 5-minute window against manual counts made in CVAT. Line crossings use confirmed track IDs with hysteresis.
 - Zones/lines: per-camera config in `configs/zones/<camera>.yaml` (polygons per approach/lane).
 - Queue estimate: vehicles stationary inside an approach zone.
 - A recorded video can replace the stream, so the whole path is testable offline.
+- The edge runs the **ONNX model through ONNX Runtime with our own pre- and post-processing**, with no PyTorch or Ultralytics at runtime (T-026). Events are buffered on disk and retried with backoff when the API is down (T-027).
 
-### 5.3 Export and benchmarks `[Proposed]`
+### 5.3 Export and benchmarks `[Decided]`
 
-Formats to compare: PyTorch, ONNX, OpenVINO, NCNN, TensorRT (hardware permitting). The notebook's claims ("RPi5 NCNN ~10 to 14 FPS", "Jetson Orin 80+ FPS") are unsourced `[Critiqued]`; replace them with measured numbers on the device we actually have (the Mac CPU at minimum), with latency, FPS and accuracy drop recorded per format.
+Formats benchmarked on the hardware that exists, the Mac (T-026): PyTorch-MPS (reference), **ONNX + ONNX Runtime CPU (deployment format)**, Core ML (optional), ONNX INT8 (experiment). OpenVINO, TensorRT and NCNN are out until matching hardware exists. Per format: Rabat-test mAP drop, latency p50/p95, FPS, size. Details in [`docs/review/R5-ai-engineering.md`](docs/review/R5-ai-engineering.md). The notebook's claims ("RPi5 NCNN ~10 to 14 FPS", "Jetson Orin 80+ FPS") are unsourced `[Critiqued]`; replace them with measured numbers on the device we actually have (the Mac CPU at minimum), with latency, FPS and accuracy drop recorded per format.
 
 ## 6. Control and simulation
 
-### 6.1 Formulation `[Proposed]`
+### 6.1 Formulation `[Decided]`
 
 ```mermaid
 flowchart LR
@@ -269,22 +271,29 @@ flowchart LR
 
 | Tier | Controller | Input needed |
 |---|---|---|
-| C0 | Fixed-time plan | None |
-| C1 | Webster optimal cycle / queue-proportional split | Flow per approach |
-| C2 | Max-pressure | Queue per approach (and downstream) |
-| C3 | RL (optional) | Same state, plus training episodes |
+| C0 | Fixed-time, **Webster-tuned** per demand scenario: `C = (1.5 L + 5) / (1 - Y)`, greens proportional to `y_i` | Average flows (offline) |
+| C1 | Adaptive Webster / queue-proportional split, recomputed each cycle | Counts per approach, last window |
+| C2 | Max-pressure (Varaiya). Camera-only, it reduces to the largest weighted queue, because downstream queues are unseen | Queue per approach (and downstream if known) |
+| C3 | RL (stretch, after v1.0), via sumo-rl | Same state, plus training episodes |
+
+All controllers respect the same safety constraints: minimum and maximum green, amber, all-red, pedestrian minimum. C0 to C2 are pure functions in `vbtso.control` (state in, decision out), unit-tested without SUMO, behind a thin TraCI adapter. The same functions serve the API's `/v1/advice` (T-028).
 
 The state the controller needs must be producible by T2 (zone queue + counts). If perception cannot supply it, the controller is not valid. This is the main coupling risk between the two halves.
 
-### 6.2 Validation `[Proposed]`
+### 6.2 Validation `[Decided]`
 
-SUMO scenario of one intersection (a real Rabat junction can be modelled from OpenStreetMap; to be chosen). Compare C0 to C2 (and C3) on average delay, queue length, throughput, over several demand levels and random seeds. Two experiments:
-1. Ideal sensing (ground-truth counts from SUMO).
-2. Noisy sensing (counts with the error measured on real video), to show how perception error propagates into control quality.
+First a sanity check on a RESCO single-intersection network shipped with **sumo-rl** (MIT), against RESCO's published fixed-time, greedy and max-pressure baselines. Then **one real Rabat signalised 4-way junction** from OpenStreetMap (`netconvert`), proposed during P4 and confirmed by the owner. Demand is synthetic, with **4 scenarios** (low, medium, high, unbalanced) loosely informed by Rabat footage counts. This is stated as an assumption.
+
+Three sensing models:
+1. Ideal (SUMO lane-area detectors).
+2. Camera-only (approaches, no downstream).
+3. Noisy (errors drawn from the measured P3 count error, worse at night).
+
+Metrics: mean delay per vehicle, mean and maximum queue, throughput, stops. **10 seeds per scenario**, mean and 95% CI, warm-up discarded. Headline result: delay against perception error, which shows how good the camera must be for adaptive control to pay off. Details in [`docs/review/R7-algorithms-and-methodology.md`](docs/review/R7-algorithms-and-methodology.md).
 
 Published SUMO benchmarks (e.g. RESCO) report fixed-time, greedy and max-pressure baselines against learning methods, and note that max-pressure is hard to beat, which is why C2 is the real bar for C3 (*benchmark claims from search results; read RESCO's paper before quoting numbers*).
 
-## 7. Integration `[Proposed]`
+## 7. Integration `[Decided]`
 
 Replace the ad-hoc payload with a versioned schema (counts only, R7). Candidate v1:
 
@@ -305,17 +314,17 @@ Replace the ad-hoc payload with a versioned schema (counts only, R7). Candidate 
 }
 ```
 
-n8n is optional glue; a small FastAPI service that validates the schema and stores events would be a more portable portfolio component (decision pending). No images, no coordinates, no plate text in the payload.
+**FastAPI only, n8n dropped** (T-007). Routes are versioned (`/v1/events`, `/v1/advice`, `/health`, `/metrics`). Events go to SQLite for v1.0 behind a repository layer (Postgres later), idempotent on (`camera_id`, `window_start`). Each camera authenticates with its own bearer token. Logs are structured JSON, and the API exposes Prometheus metrics. Configuration uses `pydantic-settings`. Dependabot and secret scanning are on. No images, no coordinates, no plate text in the payload. Details in [`docs/review/R6-architecture-and-production.md`](docs/review/R6-architecture-and-production.md) (T-027).
 
-## 8. Testing and validation `[Proposed]`
+## 8. Testing and validation `[Decided]`
 
 | Layer | Test |
 |---|---|
 | Data | Schema checks, no scene appears in two splits, class counts match the card. |
-| Model | Per-class AP on the held-out scenes; regression threshold in CI on a tiny fixture. |
-| Tracking/counting | Count error vs. manual counts on labelled clips. |
-| Control | Simulation comparison with fixed seeds. |
-| Integration | JSON schema validation. |
+| Model | Per-class AP with box counts on the held-out Rabat video and BMD-45 validation; model gate before promotion (T-025); CPU smoke-training workflow on a tiny fixture. |
+| Tracking/counting | Count MAPE per line per 5-min window vs. manual CVAT counts; HOTA/IDF1 where ground-truth tracks exist. |
+| Control | Unit tests of C0 to C2 as pure functions; SUMO comparison, 10 seeds, 3 sensing models. |
+| Integration | Pydantic schema tests (done); API tests; compose end-to-end run (edge to API to advice). |
 
 ## 9. Custom implementations and ablations `[Proposed]`
 
@@ -323,14 +332,14 @@ The pipeline uses off-the-shelf components (Ultralytics detector, ByteTrack-styl
 
 | ID | Component | What we write | Compared against | Acceptance check |
 |---|---|---|---|---|
-| X1 | Mini detector | Small anchor-free detector in PyTorch: backbone, detection head, GIoU loss, NMS | YOLO26n on the same scene-level split | Per-class mAP50 reported for both; gap and likely causes documented. |
-| X2 | Tracker | Kalman filter (constant-velocity) plus Hungarian matching on IoU | ByteTrack-style tracker from Ultralytics | Same clips: ID switches and zone-count error for both. |
+| X1 | Mini detector *(stretch, after v1.0)* | Small anchor-free detector in PyTorch: backbone, detection head, GIoU loss, NMS | YOLO26n on the same scene-level split | Per-class mAP50 reported for both; gap and likely causes documented. |
+| X2 | Tracker *(if time allows)* | Kalman filter (constant-velocity) plus Hungarian matching on IoU | ByteTrack-style tracker from Ultralytics | Same clips: ID switches and zone-count error for both. |
 | X3 | Imbalance loss | Focal loss and class-balanced loss implemented from the papers | Default loss; oversampling of rare classes | Ablation table with per-class AP for `urgence`, `Triporteur`, `tram`; replaces the unsupported `fl_gamma` setting (section 3.3). |
 | X4 | Ablation study | Controlled sweeps over input resolution, augmentation and model size | The baseline run | One run per factor, one change at a time, all logged in the tracker (section 3.5); results in a single table. |
-| X5 | RL controller (C3) | DQN or PPO agent over the SUMO state defined in section 6.1 | C2 max-pressure, C0 fixed-time | Average delay over several demand levels and seeds; reported as a win only if it beats max-pressure. |
+| X5 | RL controller (C3) *(stretch, after v1.0)* | DQN or PPO agent over the SUMO state defined in section 6.1 | C2 max-pressure, C0 fixed-time | Average delay over several demand levels and seeds; reported as a win only if it beats max-pressure. |
 | X6 | Domain-shift experiment | Train on public data, test on Rabat footage, then fine-tune | Zero-shot result | mAP before and after fine-tuning; a plot of mAP against the number of Rabat images used. |
 | X7 | Zero-shot baseline | Evaluation script running an open-vocabulary detector (e.g. Grounding DINO, OWL-ViT) on the held-out Rabat frames, no training | Our fine-tuned detector | Extra row in the X6 table: mAP50 per class, zero-shot versus trained. Offline only. |
-| X8 | Rare-class label QA | Offline script: a small open-source VLM classifies cropped boxes of `urgence`, `Triporteur`, `tram`; disagreements are queued for manual re-check | Manual review alone | Number of label errors found, and per-class AP before and after correction. The VLM never writes labels. |
+| X8 | Rare-class label QA *(if time allows)* | Offline script: a small open-source VLM classifies cropped boxes of `urgence`, `Triporteur`, `tram`; disagreements are queued for manual re-check | Manual review alone | Number of label errors found, and per-class AP before and after correction. The VLM never writes labels. |
 
 ```mermaid
 flowchart LR
@@ -353,11 +362,11 @@ Order of work: X3 and X4 first (cheap, they reuse the existing training loop), t
 |---|---|---|---|---|
 | T-001 | 2026-10-20 | S3-compatible bucket + DVC instead of Google Drive | Decided (provider: Cloudflare R2, see T-016) | R1, R3 |
 | T-002 | 2026-10-20 | Split by scene, not frame | Proposed | R2 |
-| T-003 | 2026-10-20 | Keep YOLO26n as default, benchmark vs YOLO11n | Proposed | R3, R4 |
-| T-004 | 2026-10-20 | Tracking + zone counting replaces per-frame counts | Proposed | R5 |
-| T-005 | 2026-10-20 | SUMO as controller validation ground truth | Proposed | R6 |
-| T-006 | 2026-10-20 | Experiment tracker: W&B or MLflow | Open | R1 |
-| T-007 | 2026-10-20 | Integration layer: n8n vs FastAPI | Open | R7 |
+| T-003 | 2026-10-20 | Keep YOLO26n as default, benchmark vs YOLO11n | Superseded by T-024 | R3, R4 |
+| T-004 | 2026-10-20 | Tracking + zone counting replaces per-frame counts | Decided | R5 |
+| T-005 | 2026-10-20 | SUMO as controller validation ground truth | Decided (set-up in T-028) | R6 |
+| T-006 | 2026-10-20 | Experiment tracker: W&B or MLflow | Decided 2026-11-02: MLflow on DagsHub (T-025) | R1 |
+| T-007 | 2026-10-20 | Integration layer: n8n vs FastAPI | Decided 2026-11-02: FastAPI only (T-027) | R7 |
 | T-008 | 2026-10-20 | VLM/foundation-model pre-labelling and judge-model evaluation | Rejected (owner); amended 2026-11-02 by T-012 | Manual annotation + metric-based evaluation instead; avoids extra complexity |
 | T-009 | 2026-10-20 | Hugging Face Hub for publishing datasets, weights, model/dataset cards (DVC stays the working store) | Decided | R1 |
 | T-010 | 2026-11-02 | Project renamed VBTSO (see functional D-008); repo `vaso-traffic`; use `vbtso` as the Python package name when `src/` is created | Decided | Naming consistency |
@@ -373,11 +382,18 @@ Order of work: X3 and X4 first (cheap, they reuse the existing training loop), t
 | T-020 | 2026-11-02 | Labelling with CVAT self-hosted (Docker); Roboflow free plan rejected for private footage (public projects) | Decided | R7 privacy |
 | T-021 | 2026-11-02 | Imbalance: `cls_pw` + dataset oversampling + copy-paste + negative cap; `image_weights`/`fl_gamma` dropped (removed from Ultralytics) | Decided | R3 |
 | T-022 | 2026-11-02 | Release rules: own raw footage never published; faces and plates blurred before any release; CC BY and NC-SA data released separately; model cards state training-data licences | Decided | R7, licences |
+| T-023 | 2026-11-02 | MVP = v1.0 (T1 to T4 measured, C0 to C2 in SUMO); stretch after v1.0: X1, X5 (RL), dashboard, HF Space, hardware | Decided | Review R1, functional D-010 |
+| T-024 | 2026-11-02 | Detector: YOLO26n default, RF-DETR Nano (Apache-2.0) as comparison instead of YOLO11n; per-class/per-condition evaluation, 3 seeds for published numbers; count MAPE is the T2 metric | Decided | Review R3 |
+| T-025 | 2026-11-02 | MLOps: MLflow on DagsHub (tracking + registry), single training entry point and configs, model gate, DVC for data only, CPU smoke-training workflow | Decided | Review R4 |
+| T-026 | 2026-11-02 | Export and serving: ONNX Runtime at the edge without PyTorch/Ultralytics; benchmarks on the Mac (PyTorch-MPS, ONNX, Core ML, ONNX INT8); OpenVINO/TensorRT/NCNN out until hardware exists | Decided | Review R5 |
+| T-027 | 2026-11-02 | Architecture: FastAPI only, `/v1` routes, SQLite for v1.0, idempotent events, per-camera bearer token, edge disk buffer with retry, JSON logs, Prometheus metrics, pydantic-settings, Dependabot | Decided | Review R6 |
+| T-028 | 2026-11-02 | Control and simulation: Webster-tuned C0, shared safety constraints, controllers as pure functions, RESCO sanity check, one Rabat junction from OSM (proposed in P4), 4 demand scenarios, 3 sensing models, 10 seeds | Decided | Review R7 |
 
 ## 11. Changelog
 
 | Date | Change |
 |---|---|
+| 2026-11-02 | Reviews R1, R3 to R7 done: 3.2, 3.5, 5.2, 5.3, 6.1, 6.2, 7 decided; T-003 superseded, T-004 to T-007 resolved; T-023 to T-028. |
 | 2026-11-02 | YouTube Rabat frames used for fine-tuning and testing (split by video), not only as an OOD test; 2.3 and T-018 updated. |
 | 2026-11-02 | Review R2 (data engineering): 2.3 rewritten from verified sources, 3.3 imbalance corrected (`cls_pw`), T-018 to T-022. |
 | 2026-11-02 | M3 containers: api and edge images, schema v1 pydantic model and /events stub, edge stub, compose, CI image build (T-017). |
