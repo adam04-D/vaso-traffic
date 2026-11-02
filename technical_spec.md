@@ -78,9 +78,24 @@ flowchart LR
 
 Rule: split by `scene_id`; at least one night and one rain scene are held out entirely. Rare classes get reported with their raw box counts.
 
-### 2.5 Storage `[Proposed]`
+### 2.5 Storage `[Decided]`
 
-Replace Drive with an S3-compatible bucket (candidates: Cloudflare R2, Backblaze B2, or MinIO locally) as the DVC remote. Reasons: versioned, scriptable, usable from Kaggle/Colab/Mac with the same commands, and it is what real teams do. Cost on free tiers to be checked at setup (*verify*).
+Replace Drive with S3-compatible object storage as the DVC remote. Reasons: versioned, scriptable, usable from Kaggle/Colab/Mac with the same commands, and it is what real teams do.
+
+```mermaid
+flowchart LR
+    GIT[(Git repo<br/>code + .dvc pointers)] --- DVC{{DVC}}
+    DVC -->|default, shared| R2[(Cloudflare R2<br/>remote r2)]
+    DVC -->|offline dev, tests| MIN[(S3Mock in Docker<br/>remote local, localhost only)]
+    R2 --- KG[Kaggle / Colab<br/>training]
+    R2 --- MAC[Mac<br/>development]
+    MIN --- MAC
+```
+
+- **`r2`** is the shared, default remote. It has to be cloud-hosted because Kaggle and Colab cannot reach a store running on the Mac. Free-tier limits and egress terms to be re-checked when the bucket is created (*verify*). Backblaze B2 is the fallback if R2 proves unsuitable.
+- **`local`** is a throwaway S3-compatible store (Adobe S3Mock) under Docker Compose, bound to `localhost`. It lets everything be developed and tested offline and without cloud credentials. It is not a production store. MinIO was the first choice, but its images could no longer be pulled from the public registries (checked 2026-11-02); the push, pull and restart-persistence round trip was verified against S3Mock with DVC 3.67.
+- Credentials never enter git: AWS-style environment variables (from `.env`, or Kaggle/Colab Secrets) or `.dvc/config.local`.
+- Commands and per-machine setup are in `docs/DEVELOPER_GUIDE.md`, section 8.
 
 ### 2.6 Hugging Face Hub `[Proposed]`
 
@@ -313,7 +328,7 @@ Order of work: X3 and X4 first (cheap, they reuse the existing training loop), t
 
 | ID | Date | Decision | Status | Requirement |
 |---|---|---|---|---|
-| T-001 | 2026-10-20 | S3-compatible bucket + DVC instead of Google Drive | Decided (provider TBD) | R1, R3 |
+| T-001 | 2026-10-20 | S3-compatible bucket + DVC instead of Google Drive | Decided (provider: Cloudflare R2, see T-016) | R1, R3 |
 | T-002 | 2026-10-20 | Split by scene, not frame | Proposed | R2 |
 | T-003 | 2026-10-20 | Keep YOLO26n as default, benchmark vs YOLO11n | Proposed | R3, R4 |
 | T-004 | 2026-10-20 | Tracking + zone counting replaces per-frame counts | Proposed | R5 |
@@ -328,11 +343,13 @@ Order of work: X3 and X4 first (cheap, they reuse the existing training loop), t
 | T-013 | 2026-11-02 | Repo licence AGPL-3.0 (replaces MIT) | Decided | Matches Ultralytics AGPL-3.0 (section 3.4) |
 | T-014 | 2026-11-02 | Workflow: protected main, branch + PR for every change, squash-merge, Conventional Commits (extra types `exp`, `data`), GitHub issues and milestones; see CONTRIBUTING.md and docs/DEVELOPER_GUIDE.md | Decided | Traceability, enterprise-style process |
 | T-015 | 2026-11-02 | Environment: uv (Python 3.12, `pyproject.toml` + committed `uv.lock`) replaces conda/pip/`requirements.txt`; `just` as task runner; ruff + pytest; pre-commit (ruff, nbstripout); heavy deps as extras (`train`, `edge`, `api`), tooling as a `dev` group | Decided | R1, R3 |
+| T-016 | 2026-11-02 | DVC remotes: `r2` (Cloudflare R2, shared, default) and `local` (S3Mock in Docker, offline dev); credentials only through environment variables or git-ignored `.dvc/config.local`; store bound to localhost, no real data | Decided | R1, R3; Kaggle/Colab cannot reach a MinIO on the Mac, so the shared remote must be cloud-hosted |
 
 ## 11. Changelog
 
 | Date | Change |
 |---|---|
+| 2026-11-02 | M2 data platform: DVC remotes r2 + local (T-016), docker-compose with an S3Mock dev store (MinIO images unavailable), just recipes, guide section 8. |
 | 2026-11-02 | M1 environment: section 4 rewritten to the real repo layout; T-015 (uv, just, ruff, pre-commit, CI). |
 | 2026-11-02 | M0 governance: licence AGPL-3.0 (3.4, T-013), contribution workflow (T-014). |
 | 2026-11-02 | Amended T-008 with T-012: offline VLM use allowed (X7, X8 in section 9). |
