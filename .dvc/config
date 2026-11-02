@@ -1,0 +1,7 @@
+[core]
+    remote = r2
+['remote "r2"']
+    url = s3://vbtso-data/dvc
+['remote "local"']
+    url = s3://vbtso-data/dvc
+    endpointurl = http://localhost:9090

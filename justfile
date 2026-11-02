@@ -47,6 +47,35 @@ nb-clean:
 lab:
     uv run jupyter lab
 
+# Start local services (S3-compatible dev store on localhost:9090, bucket created automatically)
+up:
+    docker compose up -d --wait s3mock
+
+# Stop local services (data is kept in the Docker volume; `docker compose down -v` erases it)
+down:
+    docker compose down
+
+# Follow the logs of the local services
+logs:
+    docker compose logs -f
+
+# One-time per machine: give the DVC `local` remote placeholder credentials (the dev store accepts any; kept in .dvc/config.local, not in git)
+dvc-local-setup:
+    uv run dvc remote modify --local local access_key_id local
+    uv run dvc remote modify --local local secret_access_key local
+
+# Show which tracked data differs from the cache and from a remote (default: r2)
+dvc-status remote="r2":
+    uv run dvc status --cloud -r {{remote}}
+
+# Download tracked data from a remote (default: r2)
+dvc-pull remote="r2":
+    uv run dvc pull -r {{remote}}
+
+# Upload tracked data to a remote (default: r2)
+dvc-push remote="r2":
+    uv run dvc push -r {{remote}}
+
 # Regenerate uv.lock after editing pyproject.toml
 lock:
     uv lock
