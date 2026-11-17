@@ -17,7 +17,7 @@ labels: fix
 ## Environment
 
 - Commit / branch:
-- Machine (Mac, Kaggle, Colab, Docker):
+- Machine (Mac, Kaggle, Colab):
 - Dataset version (DVC tag), if relevant:
 
 ## Logs or screenshots

@@ -1,1 +1,1 @@
-"""Data engineering: frame extraction, quality filters, scene-level splits (milestone P1)."""
+"""Data: ingest, taxonomy mapping, quality checks and by-video splits (milestone D1)."""

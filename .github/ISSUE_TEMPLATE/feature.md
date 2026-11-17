@@ -16,8 +16,8 @@ labels: feat
 - [ ]
 - [ ]
 
-## Spec references
+## References
 
-<!-- Sections / decision IDs in functional_spec.md or technical_spec.md, e.g. technical 5.2, T-004. -->
+<!-- Section of docs/PROJECT.md, e.g. section 4 or question Q3. -->
 
 ## Out of scope

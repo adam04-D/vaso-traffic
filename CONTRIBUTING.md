@@ -8,8 +8,8 @@ These rules apply to everyone, including the owner. They exist so that `main` is
 2. **Every PR closes an issue.** Open (or pick) an issue first, then write `Closes #<n>` in the PR description.
 3. **Squash-merge only.** The PR title becomes the single commit on `main`, so the PR title must follow the commit convention below (CI checks it).
 4. **Delete the branch after merge** (GitHub does it automatically).
-5. **Specs are living documents.** If a PR changes a decision, a technology or a feature, it also updates [`functional_spec.md`](functional_spec.md) and/or [`technical_spec.md`](technical_spec.md): the relevant section, a decision-log row and a changelog row.
-6. **No secrets, no raw data, no weights in git.** Secrets go in `.env` (never committed; see `.env.example`). Data and weights are versioned with DVC.
+5. **The plan is a living document.** If a PR changes a decision, it also updates [`docs/PROJECT.md`](docs/PROJECT.md), including a decision-log row.
+6. **No secrets, no raw data, no weights in git.** Secrets go in `.env` (never committed; see `.env.example`). Data is versioned with DVC, and runs and weights are tracked in MLflow.
 7. **Licence.** The project is AGPL-3.0 (see [`LICENSE`](LICENSE)). By contributing you agree that your contribution is released under it.
 
 ## Branch names
@@ -25,7 +25,7 @@ These rules apply to everyone, including the owner. They exist so that `main` is
 | `data/` | Dataset changes: new sources, labels, DVC versions, pipeline stages |
 | `refactor/` | Code change with no behaviour change |
 | `test/` | Adding or fixing tests only |
-| `ci/` | CI workflows, Docker, build tooling |
+| `ci/` | CI workflows and build tooling |
 | `chore/` | Maintenance: dependencies, config, repo housekeeping |
 
 ## Commit messages
@@ -40,14 +40,14 @@ Good examples:
 fix: keep training rows with missing engine size
 feat(tracking): count vehicles crossing a zone line
 exp(model): focal loss gamma=2 on rare classes
-data: add scene-level split v1
-docs: record T-013 licence decision
+data: split Rabat frames by video
+docs: add EDA findings to the project plan
 chore: bump ultralytics to 8.4
 ```
 
 Bad examples: `update`, `fixed stuff`, `WIP`, `Final version 2`.
 
-Breaking change: add `!` after the type (`feat!: change event schema to v2`) and explain it in the body.
+Breaking change: add `!` after the type (`feat!: rename taxonomy classes`) and explain it in the body.
 
 ## Daily routine
 
@@ -72,16 +72,16 @@ just test
 ## Issues and milestones
 
 - **Issues define problems.** Use the templates: *Bug*, *Feature*, *Experiment*.
-- **Milestones group issues** into deliverables (M0 governance, M1 environment, M2 data platform, M3 containers, P1 to P5 product phases, R deep review).
-- Labels: one **type** label (`feat`, `fix`, `docs`, `exp`, `data`, `chore`) and one or more **area** labels (`data-eng`, `cv`, `mlops`, `control`, `infra`).
-- An experiment issue states its hypothesis, dataset version, metric and result, whether or not the result is positive.
+- **Milestones group issues** into deliverables: D1 to D5 (see [`docs/PROJECT.md`](docs/PROJECT.md)). Optional work has the `stretch` label.
+- Labels: one **type** label (`feat`, `fix`, `docs`, `exp`, `data`, `chore`) and one or more **area** labels (`data-eng`, `cv`, `mlops`, `infra`).
+- An experiment issue states its hypothesis, dataset version, metric, MLflow run link and result, whether or not the result is positive.
 
 ## Pull requests
 
 - Small and focused: one issue, one branch, one PR.
 - Fill in the PR template (what, why, how it was tested).
 - CI must be green before merging.
-- If a decision changed, link the decision-log row (e.g. `T-013`).
+- If a decision changed, add the row to the decision log in `docs/PROJECT.md`.
 
 ## Development setup
 

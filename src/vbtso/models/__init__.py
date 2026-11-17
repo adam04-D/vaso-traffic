@@ -1,1 +1,1 @@
-"""Detector training, evaluation and export (milestone P2)."""
+"""Detector training and evaluation, tracked in MLflow (milestones D2 and D3)."""
