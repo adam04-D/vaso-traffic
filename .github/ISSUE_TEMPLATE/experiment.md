@@ -7,12 +7,12 @@ labels: exp
 
 ## Hypothesis
 
-<!-- e.g. "Focal loss (gamma=2) raises per-class AP50 on urgence/Triporteur/tram by at least 5 points." -->
+<!-- e.g. "Focal loss (gamma=2) raises per-class AP50 on three_wheeler, bus and truck by at least 5 points." -->
 
 ## Setup
 
 - Dataset version (DVC tag):
-- Baseline run (tracker link):
+- Baseline run (MLflow link):
 - What changes (one factor only):
 - Config file:
 
@@ -20,8 +20,8 @@ labels: exp
 
 ## Result
 
-<!-- Filled in when done, positive or negative. Link the run. -->
+<!-- Filled in when done, positive or negative. Link the MLflow run. -->
 
 ## Conclusion and decision
 
-<!-- Keep / reject; decision-log row if it changes the spec. -->
+<!-- Keep / reject; decision-log row in docs/PROJECT.md if it changes a decision. -->

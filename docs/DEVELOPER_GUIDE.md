@@ -1,6 +1,6 @@
 # Developer guide
 
-Setup and command cheat sheet for VBTSO. It grows with every milestone: each PR that adds a tool or a command also adds it here.
+Setup and command cheat sheet for VBTSO. Each PR that adds a tool or a command also adds it here.
 
 | Section | Added in |
 |---|---|
@@ -12,7 +12,7 @@ Setup and command cheat sheet for VBTSO. It grows with every milestone: each PR 
 | [6. Kaggle and Colab](#6-kaggle-and-colab) | M1 |
 | [7. Quality: lint, tests, hooks, CI](#7-quality-lint-tests-hooks-ci) | M1 |
 | [8. Data versioning (DVC)](#8-data-versioning-dvc) | M2 |
-| [9. Docker images (edge, API)](#9-docker-images-edge-api) | M3 |
+| [9. Experiment tracking (MLflow)](#9-experiment-tracking-mlflow) | refocus |
 
 ---
 
@@ -24,7 +24,6 @@ Setup and command cheat sheet for VBTSO. It grows with every milestone: each PR 
 | gh | GitHub CLI: PRs, issues, setup script | `brew install gh` | [cli.github.com](https://cli.github.com) | `gh --version` |
 | uv | Python versions, venv, dependencies (replaces conda, pip, venv, pip-tools) | `brew install uv` or `curl -LsSf https://astral.sh/uv/install.sh \| sh` | same `curl` command | `uv --version` |
 | just | Task runner (replaces ad-hoc shell commands and Makefiles) | `brew install just` | `uv tool install rust-just` or your package manager | `just --version` |
-| Docker | Edge/API images, local S3 dev store | Docker Desktop or OrbStack | Docker Engine | `docker --version` |
 
 No system Python is needed: uv downloads the pinned Python (3.12) itself. Do not use conda, Miniconda or a global `pip install` for this project.
 
@@ -58,12 +57,12 @@ gh pr create --fill               # or open the PR on GitHub
 |---|---|---|
 | `feat/` | `feat` | `feat(tracking): count vehicles crossing a zone line` |
 | `fix/` | `fix` | `fix: keep training rows with missing engine size` |
-| `docs/` | `docs` | `docs: record T-013 licence decision` |
+| `docs/` | `docs` | `docs: add EDA findings to the project plan` |
 | `exp/` | `exp` | `exp(model): focal loss gamma=2 on rare classes` |
-| `data/` | `data` | `data: add scene-level split v1` |
+| `data/` | `data` | `data: split Rabat frames by video` |
 | `refactor/` | `refactor` | `refactor: move frame filters into vbtso.data` |
 | `test/` | `test` | `test: cover zone polygon edge cases` |
-| `ci/` | `ci` | `ci: build edge image on pull requests` |
+| `ci/` | `ci` | `ci: cache uv downloads` |
 | `chore/` | `chore` | `chore: bump ultralytics to 8.4` |
 
 ### Useful git commands
@@ -94,16 +93,16 @@ git fetch --prune
 
 ## 3. GitHub: issues, milestones, PRs
 
-One-time setup (labels, milestones, starter issues, `main` protection): run `bash scripts/github_setup.sh` once, after `gh auth login`.
+Labels, merge settings and the `protect-main` ruleset are already set on GitHub. The milestones (D1 to D5) and their issues come from `bash scripts/gh_roadmap_ds.sh`. It is safe to re-run because it skips anything that already exists.
 
 ```bash
 gh issue list                               # open issues
-gh issue list --milestone "M1 Environment"  # issues of one milestone
+gh issue list --milestone "D1 Data and EDA"  # issues of one milestone
 gh issue view 12                            # read an issue
 gh issue create                             # new issue (pick a template)
 gh issue develop 12 --name feat/zone-counter --checkout   # branch linked to issue #12
 
-gh pr create --fill --milestone "M1 Environment"   # open a PR from the current branch
+gh pr create --fill --milestone "D1 Data and EDA"   # open a PR from the current branch
 gh pr status                                # your PRs and their checks
 gh pr checks                                # CI status of the current PR
 gh pr view --web                            # open the PR in the browser
@@ -120,8 +119,8 @@ First time on a new machine:
 
 ```bash
 git clone https://github.com/adam04-D/vaso-traffic.git && cd vaso-traffic
-just setup            # Python 3.12 + .venv + all extras + dev tools + git hooks (downloads PyTorch, a few GB)
-# or, to work on docs/specs/lint/tests only:
+just setup            # Python 3.12 + .venv + the train extra + dev tools + git hooks (downloads PyTorch, a few GB)
+# or, to work on docs/lint/tests only:
 just setup-light
 ```
 
@@ -130,9 +129,7 @@ Dependency layout:
 | Where | What | Install |
 |---|---|---|
 | core | numpy, pyyaml | always |
-| extra `train` | ultralytics, torch, torchvision, opencv, pandas, pillow, imagehash, matplotlib, roboflow | `uv sync --extra train` |
-| extra `edge` | onnxruntime, opencv | `uv sync --extra edge` |
-| extra `api` | fastapi, uvicorn, pydantic | `uv sync --extra api` |
+| extra `train` | ultralytics, torch, torchvision, opencv, pandas, pillow, imagehash, matplotlib, seaborn, mlflow, roboflow | `uv sync --extra train` |
 | group `dev` | ruff, pytest, pre-commit, nbstripout, dvc, jupyterlab | installed by default by `uv sync` |
 
 Everyday commands:
@@ -171,11 +168,12 @@ Jupyter: `just lab`, or in VS Code select the `.venv` interpreter.
 | `just hooks` | Run all pre-commit hooks on all files |
 | `just nb-clean` | Strip outputs from all notebooks |
 | `just lab` | JupyterLab in the project env |
+| `just mlflow` | MLflow server on http://127.0.0.1:5000 (section 9) |
+| `just mlflow-backup` | Zip the local MLflow store into `backups/` |
+| `just dvc-pull` / `dvc-push` / `dvc-status` | Data sync with R2 (section 8) |
 | `just lock` | Regenerate `uv.lock` |
 | `just upgrade <pkg>` | Upgrade one dependency |
 | `just clean` | Remove caches and build artefacts |
-
-Recipes for DVC and Docker are added in milestones M2 and M3.
 
 ## 6. Kaggle and Colab
 
@@ -187,11 +185,11 @@ git clone https://github.com/adam04-D/vaso-traffic.git && cd vaso-traffic
 uv pip install --system ".[train]"     # the platform's own PyTorch is reused when it satisfies the pin
 ```
 
-Secrets (R2 keys, `HF_TOKEN`, `ROBOFLOW_API_KEY`) go in Kaggle Secrets or Colab Secrets and are exported as environment variables, never written into a notebook. Data comes from DVC (milestone M2), not from Google Drive.
+Secrets (R2 keys, `HF_TOKEN`, `ROBOFLOW_API_KEY`) go in Kaggle Secrets or Colab Secrets and are exported as environment variables, never written into a notebook. Data comes from DVC (section 8), not from Google Drive. Kaggle and Colab can't reach the MLflow server on the Mac, so their runs are imported afterwards (section 9).
 
 ## 7. Quality: lint, tests, hooks, CI
 
-- **ruff** lints and formats (line length 100). The legacy notebooks in `notebooks/` and `main.ipynb` are excluded until they are ported in P1.
+- **ruff** lints and formats (line length 100). The hackathon notebooks in `notebooks/legacy/` are excluded.
 - **pytest** runs the tests in `tests/`.
 - **pre-commit** runs on every commit: YAML/TOML checks, end-of-file and whitespace fixes, large-file guard (1 MB), ruff, and **nbstripout**, which removes notebook outputs. The first commit that touches an old notebook will therefore change it; the old results are recorded in `docs/legacy_results.md`.
 - **CI** (`.github/workflows/ci.yml`) runs on every PR: PR-title check (Conventional Commits, types `feat fix docs exp data refactor test ci chore perf build style revert`) and `ruff` + `pytest` with `uv sync --frozen`.
@@ -202,24 +200,19 @@ just hooks                        # run hooks on every file
 uv run pre-commit autoupdate      # bump hook versions (its own chore PR)
 ```
 
-After the first CI run, add the three checks (`Lint and test`, `PR title (Conventional Commits)`, `Docker images build`) as required status checks in the `protect-main` ruleset: GitHub, Settings, Rules, Rulesets.
+Optionally add the two checks (`Lint and test`, `PR title (Conventional Commits)`) as required status checks in the `protect-main` ruleset: GitHub, Settings, Rules, Rulesets.
 
 ## 8. Data versioning (DVC)
 
 Git stores code and small pointer files (`*.dvc`, `dvc.lock`). The data itself lives in object storage, and DVC moves it. Google Drive is no longer used.
 
-| Remote | Where | Used for |
-|---|---|---|
-| `r2` (default) | Cloudflare R2 bucket, S3 protocol | Shared store: Mac, Kaggle, Colab, any other machine |
-| `local` | S3-compatible dev store (Adobe S3Mock) in Docker on `localhost:9090` | Offline development and tests, no cloud account needed |
+One remote, `r2` (the default): a Cloudflare R2 bucket reached over the S3 protocol, shared by the Mac, Kaggle and Colab.
 
 ### One-time repository setup (done once, by the owner)
 
 ```bash
 uv run dvc init
 uv run dvc remote add -d r2 s3://vbtso-data/dvc
-uv run dvc remote add local s3://vbtso-data/dvc
-uv run dvc remote modify local endpointurl http://localhost:9090
 # git add .dvc .dvcignore && commit, in the PR
 ```
 
@@ -227,34 +220,22 @@ uv run dvc remote modify local endpointurl http://localhost:9090
 
 1. Copy `.env.example` to `.env` and fill it in (`.env` is git-ignored).
 2. R2 credentials: Cloudflare dashboard, R2, Manage API tokens, create a token with Object Read & Write on the bucket. Put the key pair in `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, and the account endpoint in `AWS_ENDPOINT_URL`.
-   If DVC ignores `AWS_ENDPOINT_URL`, set the endpoint locally instead: `uv run dvc remote modify --local r2 endpointurl https://<account-id>.r2.cloudflarestorage.com`.
-3. Local dev store (optional): `just up`, then once `just dvc-local-setup` (it stores placeholder credentials in the git-ignored `.dvc/config.local`; the store accepts any).
+   If DVC ignores `AWS_ENDPOINT_URL`, set the endpoint locally instead: `uv run dvc remote modify --local r2 endpointurl https://ACCOUNT_ID.r2.cloudflarestorage.com` (your Cloudflare account ID).
 
 ### Everyday commands
 
 ```bash
 uv run dvc add data/raw/rabat_day.mp4   # track a file or folder; creates data/raw/rabat_day.mp4.dvc
 git add data/raw/rabat_day.mp4.dvc data/raw/.gitignore   # commit the pointer, not the data
-just dvc-push                           # upload to r2   (just dvc-push local  for the local store)
+just dvc-push                           # upload to r2
 just dvc-pull                           # download what the current commit points to
 just dvc-status                         # what differs from the remote
-uv run dvc repro                        # run the pipeline in dvc.yaml (added in P1), skipping unchanged stages
+uv run dvc repro                        # run the stages in dvc.yaml, if any, skipping unchanged ones
 uv run dvc dag                          # draw the pipeline graph
 uv run dvc remote list
 ```
 
 Switching dataset version = switching git commit or tag, then `dvc pull`. Never commit data, weights or `.env`.
-
-### Local services
-
-```bash
-just up      # starts the local S3 store and creates the bucket
-just down    # stops it (data stays in the Docker volume)
-docker compose down -v   # stops it and erases its data
-just logs
-```
-
-The local store is Adobe S3Mock: it accepts any credentials and is for development and tests only, never for real data. MinIO was the first choice but its container images are no longer pullable from the public registries. Pin the image tag in `.env` (`S3MOCK_IMAGE`) after the first successful `just up` (`docker compose images` shows what was pulled).
 
 ### Kaggle / Colab
 
@@ -269,56 +250,35 @@ for k in ["AWS_ENDPOINT_URL", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]:
 
 then `!dvc pull -r r2` after the install step of section 6 (add `dvc[s3]` with `uv pip install --system "dvc[s3]"`).
 
-## 9. Docker images (edge, API)
+## 9. Experiment tracking (MLflow)
 
-Two images are built from the repo root. Training is **not** containerised: it runs on Kaggle, Colab or the Mac with uv.
-
-| Image | Dockerfile | Installs | Runs | Size |
-|---|---|---|---|---|
-| `vbtso-api` | `docker/api.Dockerfile` | core + extra `api` | `uvicorn vbtso.api.main:app` on port 8000, health check on `/health` | ~360 MB |
-| `vbtso-edge` | `docker/edge.Dockerfile` | core + extra `edge` (onnxruntime, OpenCV, no PyTorch) | `python -m vbtso.edge`, a worker with no port | ~540 MB |
-
-Both are multi-stage (uv installs the locked dependencies in a builder stage, the runtime stage only copies the virtualenv), run as a non-root user (`vbtso`, uid 10001), and are pinned to exact base versions: `python:3.12.12-slim-bookworm` and uv `0.13.5` (build arguments `PYTHON_VERSION`, `UV_VERSION`). Bump them together in a `chore:` PR, never implicitly.
-
-Today both run placeholders: the API validates schema v1 events and keeps the last 100 in memory; the edge worker reads a video, counts frames and posts one empty event. Real logic arrives in P3 (edge) and P5 (API).
+MLflow runs locally on the Mac. It tracks every run (params, metrics, plots, weights) and holds the model registry. Its store is `mlruns/` (SQLite plus artefact files), which is git-ignored and exists only on this machine, so back it up now and then.
 
 ```bash
-just up                       # start the dev store and the API (localhost:8000)
-curl http://127.0.0.1:8000/health
-just build                    # build both images
-just edge                     # run the edge worker on data/samples/clip.mp4 and post an event to the API
-just edge /data/other.mp4     # another video (path as seen inside the container; ./data is mounted at /data)
-docker compose logs -f api    # see the event arrive
-just down                     # stop everything
+just mlflow                      # server + UI on http://127.0.0.1:5000 (leave it running in a terminal)
+just mlflow-backup               # zip mlruns/ into backups/
 ```
 
-Without compose:
+`MLFLOW_TRACKING_URI=http://127.0.0.1:5000` in `.env` points code and notebooks at it. In Python:
+
+```python
+import mlflow
+
+mlflow.set_experiment("d2-detector")
+with mlflow.start_run(run_name="yolo26n-640"):
+    mlflow.log_params({"model": "yolo26n", "imgsz": 640})
+    mlflow.log_metric("map50", 0.61)
+    mlflow.log_artifact("reports/confusion_matrix.png")
+```
+
+Ultralytics also logs to MLflow by itself when `mlflow` is installed and `MLFLOW_TRACKING_URI` is set (`yolo settings mlflow=True`).
+
+**Kaggle and Colab runs** can't reach the Mac. Let them write the usual Ultralytics run folder (`runs/detect/<name>/`), download it, and import it into the local server with the `log_run` importer (added in D2):
 
 ```bash
-docker build -f docker/api.Dockerfile  -t vbtso-api  .
-docker build -f docker/edge.Dockerfile -t vbtso-edge .
-docker run --rm -p 127.0.0.1:8000:8000 vbtso-api
-docker run --rm -e VIDEO_PATH=/data/clip.mp4 -v "$PWD/data/samples:/data:ro" vbtso-edge
-docker run --rm -it --entrypoint sh vbtso-edge     # look inside
-docker image ls | grep vbtso
+uv run python -m vbtso.models.log_run runs/detect/yolo26n-640 --experiment d2-detector
 ```
 
-No sample clip exists yet. Put any short video at `data/samples/clip.mp4` (the `data/` folder is DVC territory, see section 8). To generate a synthetic one:
+Model registry: the best detector is registered as `vbtso-detector`, and the alias `champion` points at the version to use. Change the alias only when the new version isn't worse on any core class.
 
-```bash
-mkdir -p data/samples
-docker run --rm --entrypoint python -v "$PWD/data/samples:/out" vbtso-edge -c "
-import cv2, numpy as np
-w = cv2.VideoWriter('/out/clip.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 25, (320, 240))
-for i in range(75):
-    f = np.zeros((240, 320, 3), np.uint8)
-    cv2.rectangle(f, (i * 3, 100), (i * 3 + 40, 140), (0, 255, 0), -1)
-    w.write(f)
-w.release()"
-```
-
-Secrets: never bake `.env` or an RTSP URL into an image (`.dockerignore` excludes them). Pass them at run time through environment variables, as compose does.
-
-Architecture note: the images are built for the machine's own architecture (arm64 on an Apple-silicon Mac, amd64 in CI). Multi-architecture builds are deferred until a deployment target (for example a Raspberry Pi) exists.
-
-CI builds both images on every PR (job "Docker images build") without pushing them.
+Useful UI views: compare runs (select runs, then **Compare**), parallel-coordinates plots for sweeps, and per-run artefacts (confusion matrix, PR curves).

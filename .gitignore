@@ -11,9 +11,12 @@ models/*.onnx
 models/*.engine
 models/*.ncnn/
 
-# ----- Training outputs -----
+# ----- Training outputs and MLflow store (local only) -----
 outputs/
 runs/
+mlruns/
+mlartifacts/
+backups/
 
 # ----- Python -----
 __pycache__/

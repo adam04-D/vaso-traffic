@@ -1,6 +1,6 @@
 # Legacy results (hackathon notebooks)
 
-Outputs that were saved inside `notebooks/01_data_engineering.ipynb` and `notebooks/02_model_training.ipynb`, kept here as a record before the pre-commit `nbstripout` hook removes notebook outputs. They come from the RamadnIA 2026 hackathon version (*GreenFlow Rabat*) and are the baseline the new pipeline has to be compared against. Not reproducible: the data lived on Google Drive and the exact split is unknown.
+Outputs that were saved inside `notebooks/legacy/01_data_engineering.ipynb` and `notebooks/legacy/02_model_training.ipynb`, kept here as a record before the pre-commit `nbstripout` hook removes notebook outputs. They come from the RamadnIA 2026 hackathon version (*GreenFlow Rabat*) and are the baseline the new pipeline has to be compared against. Not reproducible: the data lived on Google Drive and the exact split is unknown.
 
 ## Notebook 01: frame extraction and cleaning
 
@@ -22,7 +22,7 @@ Thresholds: day blur < 50, dark < 20; night blur < 15, dark < 30; rain blur < 25
 
 ## Notebook 02: dataset and training set-up
 
-Roboflow export `CCTV.v9i.yolov8`. Splits: train 4406, valid 1259, test 629 images (frame-level, see technical spec 2.4).
+Roboflow export `CCTV.v9i.yolov8`. Splits: train 4406, valid 1259, test 629 images (frame-level, so it leaks; see docs/PROJECT.md section 3).
 
 | Item | Value |
 |---|---|
@@ -53,4 +53,4 @@ Export test (Windows, Ultralytics 8.4.21, CPU): `best.pt` 5.1 MB to `best.onnx` 
 
 ## Notebooks 03 and 04, `main.ipynb`
 
-`notebooks/03_traffic_logic.ipynb` and `notebooks/04_integration_main.ipynb` are empty. `main.ipynb` holds the v0 plan and the threshold-based edge script (see functional spec section 5).
+`notebooks/legacy/main.ipynb` holds the v0 plan and the threshold-based edge script.

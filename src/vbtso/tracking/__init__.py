@@ -1,1 +1,1 @@
-"""Multi-object tracking and zone counting (milestone P3)."""
+"""Multi-object tracking and line-crossing counts (milestone D4)."""

@@ -15,7 +15,7 @@ setup:
 
 # Lightweight setup (dev tools only, no PyTorch): enough for lint, tests and docs
 setup-light:
-    uv sync --extra api
+    uv sync
     uv run pre-commit install --install-hooks
 
 # Lint without changing files
@@ -41,36 +41,11 @@ hooks:
 
 # Strip outputs from all notebooks (keeps diffs small)
 nb-clean:
-    uv run nbstripout notebooks/*.ipynb main.ipynb
+    uv run nbstripout notebooks/*.ipynb notebooks/legacy/*.ipynb
 
 # Open JupyterLab in the project environment
 lab:
     uv run jupyter lab
-
-# Start local services: S3-compatible dev store (localhost:9090) and the event API (localhost:8000)
-up:
-    docker compose up -d --wait s3mock api
-
-# Build the API and edge images
-build:
-    docker compose --profile edge build
-
-# Run the edge worker on a video (default data/samples/clip.mp4) and post one event to the API
-edge video="/data/samples/clip.mp4":
-    VIDEO_PATH={{video}} docker compose --profile edge run --rm edge
-
-# Stop local services (data is kept in the Docker volume; `docker compose down -v` erases it)
-down:
-    docker compose down
-
-# Follow the logs of the local services
-logs:
-    docker compose logs -f
-
-# One-time per machine: give the DVC `local` remote placeholder credentials (the dev store accepts any; kept in .dvc/config.local, not in git)
-dvc-local-setup:
-    uv run dvc remote modify --local local access_key_id local
-    uv run dvc remote modify --local local secret_access_key local
 
 # Show which tracked data differs from the cache and from a remote (default: r2)
 dvc-status remote="r2":
@@ -83,6 +58,17 @@ dvc-pull remote="r2":
 # Upload tracked data to a remote (default: r2)
 dvc-push remote="r2":
     uv run dvc push -r {{remote}}
+
+# MLflow tracking server on http://127.0.0.1:5000 (runs, metrics, artefacts, model registry; stored in ./mlruns)
+mlflow port="5000":
+    mkdir -p mlruns
+    uv run mlflow server --host 127.0.0.1 --port {{port}} --backend-store-uri sqlite:///mlruns/mlflow.db --artifacts-destination ./mlruns/artifacts
+
+# Zip the MLflow store (it lives only on this Mac) into backups/mlruns-<date>.zip
+mlflow-backup:
+    mkdir -p backups
+    zip -qr backups/mlruns-$(date +%Y%m%d).zip mlruns
+    @echo "Saved backups/mlruns-$(date +%Y%m%d).zip"
 
 # Regenerate uv.lock after editing pyproject.toml
 lock:

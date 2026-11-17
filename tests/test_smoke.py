@@ -4,7 +4,7 @@ import pytest
 
 import vbtso
 
-SUBPACKAGES = ["data", "models", "tracking", "control", "api"]
+SUBPACKAGES = ["data", "models", "tracking", "analytics"]
 
 
 def test_version_is_set():
