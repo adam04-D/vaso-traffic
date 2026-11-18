@@ -1,0 +1,89 @@
+# Registry of every data source used in VBTSO.
+# One entry per source: where it comes from, what we may do with it, and its role.
+# Update it whenever a source is added, re-downloaded, or changes status.
+#
+# status: use | research-only | frozen | pending
+#   use            licence allows training and publishing results
+#   research-only  train and evaluate, never redistribute the images
+#   frozen         do not use until the licence or origin is known
+#   pending        not downloaded or not checked yet
+# role:   base | moroccan | test
+
+sources:
+  rabat_yt:
+    description: Rabat street frames from 3 YouTube drive videos (day, night, rain), labelled by the owner in Roboflow
+    url: "YouTube channel STREET.MA (night video id aFtBUlb9yj8; day and rain ids TBD). Labels: Roboflow adams-space-eu9h9/greenflow-rabat-iuq8w v4"
+    retrieved: 2026-11-18
+    tool: rclone copy + rclone check from Google Drive folder GreenFlow-Rabat
+    local_path: data/raw/greenflow_drive
+    licence: third-party YouTube footage; the CC BY 4.0 shown by Roboflow does not apply to the frames
+    status: research-only
+    role: [moroccan, test]
+    size: 1308 images (521 day, 560 night, 227 rain), 6825 boxes, 1920x1080 originals in kept_frames/
+    notes:
+      - 1454 frames extracted; 144 rejected by quality filters; 2 title frames (STREET.MA overlay) removed by hand
+      - Roboflow export images are stretched to 640x640; use the originals and keep the normalised YOLO labels
+      - The export split is frame-level, so it leaks; redo it by video (2 fine-tune, 1 held-out test)
+      - "Classes: voiture 6165, camion 196, moto 190, Grand Taxi 140, bus 114, tram 9, Triporteur 6, urgence 6"
+      - The 4986 non-Rabat images in the same export have no labels (4982 empty); discard them
+      - dataset.zip in the snapshot duplicates train/valid/test
+      - Both Roboflow projects are public; make them private or remove them after export
+
+  cctv_v9:
+    description: Roboflow Universe CCTV dataset, mixed web and CCTV vehicle images, French class names
+    url: https://universe.roboflow.com/nyc/cctv-kqokl/dataset/9
+    retrieved: 2026-11-18
+    tool: copy included in the Google Drive snapshot (exported from Roboflow on 2024-04-23)
+    local_path: data/raw/greenflow_drive/CCTV.v9i.yolov8
+    licence: CC BY 4.0 (as stated on Roboflow Universe; verify on the page)
+    status: use
+    role: [base]
+    size: 5032 images (4370 train, 608 valid, 54 test), almost all labelled
+    notes:
+      - "7 classes: ambulance, bus, voiture, moto, camion de pompiers, voiture de police, camion"
+      - Contains Roboflow augmented copies of the same source images; dedupe before splitting
+      - Not Moroccan; check image quality and viewpoint before use
+
+  movits:
+    description: Moroccan Video Intelligent Transport System dataset, recorded in Rabat with a stereo vision system
+    url: https://doi.org/10.17632/5jcg5vfx58.3
+    retrieved: TBD
+    tool: TBD
+    local_path: data/raw/movits
+    licence: TBD (expected CC BY-NC-SA 4.0; confirm on the Mendeley page)
+    status: pending
+    role: [moroccan, test]
+    size: TBD
+    notes:
+      - Mendeley Data returned HTTP 500 for the whole site on 2026-11-18; retry later
+      - Check format (video or images), labels (classes, format) and viewpoint (fixed or moving)
+      - "Paper: Bourja et al., MoVITS, IEEE CIST 2018 (doi 10.1109/CIST.2018.8596566)"
+
+  bmd45:
+    description: Large fixed-CCTV vehicle detection dataset from Indian cities (Safe City cameras)
+    url: https://huggingface.co/datasets/iisc-aim/BMD-45
+    retrieved: TBD
+    tool: huggingface_hub snapshot_download at a pinned revision
+    local_path: data/raw/bmd45
+    licence: CC BY 4.0
+    status: pending
+    role: [base]
+    size: about 46K images, 14 classes, about 480K boxes (paper figures)
+    notes:
+      - Candidate base dataset; to be compared with a dashcam-view dataset (BDD100K or IDD) on the Rabat test
+      - ImageFolder format with metadata.jsonl; needs conversion to YOLO
+      - Too large for R2 free tier in full; use a subset, re-download at the pinned revision
+
+  mapillary_rabat:
+    description: Street-level photos of Rabat from Mapillary, collected via the API
+    url: https://www.mapillary.com/developer/api-documentation
+    retrieved: TBD
+    tool: TBD (vbtso collection script, API token in .env as MAPILLARY_TOKEN)
+    local_path: data/raw/mapillary_rabat
+    licence: CC BY-SA 4.0 (keep author and image id for attribution)
+    status: pending
+    role: [moroccan]
+    size: TBD
+    notes:
+      - Unlabelled; select a diverse sample (about 200 to 400 images) and label it
+      - Store a manifest (id, url, author, licence, lat, lon, capture time, sha256)
